@@ -13,7 +13,7 @@ public sealed class RuleEngine : IRuleEngine
         var candidates = rules
             .Where(r => r.Enabled && IsStructurallyValid(r) && IsMatch(r, now))
             .OrderByDescending(r => r.Priority)
-            .ThenBy(r => r.Order)
+            .ThenByDescending(r => r.Order)
             .ThenBy(r => r.Id)
             .ToList();
 
@@ -21,7 +21,7 @@ public sealed class RuleEngine : IRuleEngine
             return new(null, candidates, "Nenhuma regra corresponde ao momento atual.");
 
         var winner = candidates[0];
-        return new(winner, candidates, $"Regra '{winner.Name}' venceu por priority DESC, order ASC, id ASC.");
+        return new(winner, candidates, $"Regra '{winner.Name}' venceu por priority DESC, order DESC, id ASC.");
     }
 
     public bool IsMatch(WallpaperRule rule, DateTimeOffset now)
