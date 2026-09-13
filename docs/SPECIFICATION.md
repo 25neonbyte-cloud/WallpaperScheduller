@@ -1,6 +1,6 @@
 # Wallpaper Scheduler — Especificação Mestre
 
-**Versão:** 2.0  
+**Versão:** 2.1  
 **Plataforma:** Windows 11  
 **Stack:** C# / .NET 10 LTS / WPF  
 **Arquitetura:** MVVM + DI
@@ -46,10 +46,12 @@ Resolução determinística:
 2. ignorar estruturalmente inválidas;
 3. filtrar por dia/horário;
 4. ordenar por `priority DESC`;
-5. desempatar por `order ASC`;
+5. em sobreposição de mesma prioridade, o período configurado mais tarde vence (`order DESC`);
 6. desempatar por `id ASC`.
 
-Intervalos usam `[start,end)`. Se `end < start`, o intervalo atravessa meia-noite e `daysOfWeek` representa o dia em que ele começa. Assim, domingo `18:00→06:00` continua válido segunda às 02:00.
+Intervalos usam `[start,end)`. Se `end < start`, o intervalo atravessa meia-noite e `daysOfWeek` representa o dia em que ele começa. Assim, domingo `18:43→13:00` permanece válido durante a madrugada e até segunda às `12:59`, deixando de valer exatamente às `13:00`.
+
+Sobreposições não são silenciosas: a avaliação deve informar quando existem múltiplos períodos ativos e qual deles obteve precedência.
 
 ## Fontes de wallpaper
 
@@ -72,6 +74,8 @@ Cada regra escolhe independentemente:
 - `Random`: seleciona de forma pseudoaleatória por janela de tempo.
 
 Cada regra possui seu próprio `rotationIntervalMinutes`. Valor vazio/nulo significa trocar somente na entrada da regra/período (ou quando outra condição exigir reaplicação).
+
+A rotação sequencial é ancorada no início real do período. Exemplo: em `18:43→13:00`, com intervalo de 1 minuto e nove imagens, a sequência é `1→2→...→9→1...` enquanto o período permanecer vigente, inclusive após a meia-noite.
 
 ## Multi-monitor
 
@@ -98,7 +102,9 @@ Fluxo:
 
 ## Scheduler alvo do MVP
 
-Processo residente em System Tray, inicialização opcional com Windows, eventos de display/sessão/energia, próxima transição calculada, próxima rotação calculada e heartbeat de segurança padrão de 60 s.
+Processo residente em System Tray, inicialização opcional com Windows, eventos de display/sessão/energia, próxima transição calculada, próxima rotação calculada e heartbeat de segurança.
+
+Na etapa atual existe um loop residente de avaliação a cada 30 segundos, suficiente para validar trocas automáticas por minuto. Ele será substituído/refinado pelo scheduler orientado a eventos e próxima transição antes do fechamento do MVP.
 
 ## UI alvo do MVP
 
@@ -122,6 +128,9 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 - Ao iniciar dentro de uma regra vigente, aplicar essa regra.
 - Cada período do preset inicial pode ser alterado/removido sem restrição estrutural.
 - Uma pasta com múltiplas imagens deve respeitar o modo e intervalo configurados para sua regra.
+- Período que atravessa meia-noite deve continuar vigente até seu horário final do dia seguinte.
+- Rotação sequencial deve entrar em loop pela quantidade de imagens enquanto o período estiver vigente.
+- Em sobreposição, períodos criados/configurados mais tarde têm precedência quando a prioridade for igual e a UI/status deve informar o conflito.
 - Desconectar um monitor não interrompe o outro.
 - Reconectar um monitor reaplica sua associação válida.
 - Nenhuma regra vigente significa não alterar o wallpaper.
@@ -132,5 +141,6 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 
 - `v0.1`: vertical slice — Domain, Rule Engine, JSON, COM `IDesktopWallpaper`, WPF/MVVM, Apply Now, testes e CI.
 - `v0.2`: diagnóstico e validação real de múltiplos monitores.
-- `v0.3` em desenvolvimento: schema v2, ciclo diário editável, arquivos/pastas, rotação sequencial/aleatória por período e editor WPF com drag-and-drop.
-- Próximos blocos: binding persistente de perfis lógicos de monitor, scheduler residente/tray/eventos e acabamento/importação/exportação.
+- `v0.3`: schema v2, ciclo diário editável, arquivos/pastas, rotação sequencial/aleatória por período e editor WPF com drag-and-drop.
+- `v0.3.x`: máscara HH:mm, rotação ancorada no início do período, suporte contínuo a períodos atravessando meia-noite, precedência explícita em sobreposição e loop residente de avaliação.
+- Próximos blocos: binding persistente de perfis lógicos de monitor, tray/eventos, migração de configuração, acabamento/importação/exportação.
