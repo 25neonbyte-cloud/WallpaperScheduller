@@ -1,18 +1,27 @@
 # Wallpaper Scheduler
 
-Windows 11 desktop application for scheduling wallpapers by day, time and monitor.
+Aplicativo Windows 11 para troca automática de wallpapers por regras de dia, horário e monitor.
 
-> Source of truth: `docs/SPECIFICATION.md`
-
-## Baseline
+## Baseline técnica
 
 - C# / .NET 10 LTS
 - WPF
-- MVVM
-- Dependency Injection
-- Local JSON configuration
-- Windows `IDesktopWallpaper` integration
-- Multi-monitor aware
-- Event-driven scheduler with safety heartbeat
+- MVVM + Dependency Injection
+- JSON local versionado
+- `IDesktopWallpaper` / COM
+- Multi-monitor
+- GitHub Actions em Windows
 
-Development work is performed through branches and validated by GitHub Actions on Windows.
+A especificação em `docs/SPECIFICATION.md` é a fonte de verdade do projeto.
+
+## Estrutura
+
+- `src/WallpaperScheduler.Domain` — regras e modelos puros
+- `src/WallpaperScheduler.Application` — orquestração e contratos
+- `src/WallpaperScheduler.Infrastructure` — Windows, COM e persistência
+- `src/WallpaperScheduler.App` — WPF/MVVM
+- `tests/WallpaperScheduler.Domain.Tests` — testes do motor de regras
+
+## CI
+
+O workflow `.github/workflows/ci.yml` restaura dependências, compila, executa testes e publica um artefato Windows x64.

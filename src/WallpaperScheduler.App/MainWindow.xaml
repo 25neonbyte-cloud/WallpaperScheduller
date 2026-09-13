@@ -1,0 +1,29 @@
+<Window x:Class="WallpaperScheduler.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Wallpaper Scheduler" Width="920" Height="620" MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Wallpaper Scheduler" FontSize="30" FontWeight="SemiBold"/>
+            <TextBlock Margin="0,8,0,0" Text="Windows 11 · regras por dia, horário e monitor" Opacity="0.7"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Margin="0,28" Padding="24" BorderThickness="1" BorderBrush="#33000000" CornerRadius="10">
+            <StackPanel>
+                <TextBlock Text="MVP técnico" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="A configuração é lida de %LOCALAPPDATA%\WallpaperScheduler\config.json. O botão abaixo avalia a regra vigente, detecta os monitores ativos e aplica o estado calculado usando IDesktopWallpaper."/>
+                <Button Margin="0,24,0,0" Width="150" Height="38" HorizontalAlignment="Left" Content="Aplicar agora" Command="{Binding ApplyNowCommand}"/>
+                <TextBlock Margin="0,18,0,0" Text="{Binding Status}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Row="2" Opacity="0.55" Text="Baseline v0.1 — UI completa, scheduler residente e editor de regras entram nas próximas etapas."/>
+    </Grid>
+</Window>

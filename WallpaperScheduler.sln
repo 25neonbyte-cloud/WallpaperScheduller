@@ -1,0 +1,42 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Domain", "src\WallpaperScheduler.Domain\WallpaperScheduler.Domain.csproj", "{8E54D45A-CB72-4B49-A56B-CC2770C73201}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Application", "src\WallpaperScheduler.Application\WallpaperScheduler.Application.csproj", "{B5D5226E-C15C-4D5D-AC91-BFA3DF410B0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Infrastructure", "src\WallpaperScheduler.Infrastructure\WallpaperScheduler.Infrastructure.csproj", "{7A7B9E71-D01F-4F5B-B19A-C96DD5AC4642}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.App", "src\WallpaperScheduler.App\WallpaperScheduler.App.csproj", "{A805049B-B472-42A5-BDA2-EE437BC0737D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Domain.Tests", "tests\WallpaperScheduler.Domain.Tests\WallpaperScheduler.Domain.Tests.csproj", "{22D21BC9-B01C-463C-8A7C-672E059F6939}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8E54D45A-CB72-4B49-A56B-CC2770C73201}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E54D45A-CB72-4B49-A56B-CC2770C73201}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E54D45A-CB72-4B49-A56B-CC2770C73201}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E54D45A-CB72-4B49-A56B-CC2770C73201}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5D5226E-C15C-4D5D-AC91-BFA3DF410B0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5D5226E-C15C-4D5D-AC91-BFA3DF410B0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5D5226E-C15C-4D5D-AC91-BFA3DF410B0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5D5226E-C15C-4D5D-AC91-BFA3DF410B0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A7B9E71-D01F-4F5B-B19A-C96DD5AC4642}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A7B9E71-D01F-4F5B-B19A-C96DD5AC4642}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A7B9E71-D01F-4F5B-B19A-C96DD5AC4642}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A7B9E71-D01F-4F5B-B19A-C96DD5AC4642}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A805049B-B472-42A5-BDA2-EE437BC0737D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A805049B-B472-42A5-BDA2-EE437BC0737D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A805049B-B472-42A5-BDA2-EE437BC0737D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A805049B-B472-42A5-BDA2-EE437BC0737D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22D21BC9-B01C-463C-8A7C-672E059F6939}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22D21BC9-B01C-463C-8A7C-672E059F6939}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22D21BC9-B01C-463C-8A7C-672E059F6939}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22D21BC9-B01C-463C-8A7C-672E059F6939}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
