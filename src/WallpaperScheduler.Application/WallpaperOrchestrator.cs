@@ -55,7 +55,6 @@ public sealed class WallpaperOrchestrator(
             return result;
         }
 
-        // Enquanto a camada de binding de perfis lógicos é concluída, mantém compatibilidade com schema v1.
         foreach (var monitor in monitors)
         {
             if (rule.PerMonitor.TryGetValue(monitor.Id, out var image) && File.Exists(image))
@@ -87,14 +86,8 @@ public sealed class WallpaperOrchestrator(
             {
                 candidates.AddRange(Directory.EnumerateFiles(item.Path, "*.*", option).Where(IsSupportedFile));
             }
-            catch (UnauthorizedAccessException)
-            {
-                // Uma subpasta inacessível não invalida as demais fontes.
-            }
-            catch (IOException)
-            {
-                // Fonte temporariamente indisponível: ignora nesta avaliação.
-            }
+            catch (UnauthorizedAccessException) { }
+            catch (IOException) { }
         }
 
         candidates = candidates
@@ -106,16 +99,38 @@ public sealed class WallpaperOrchestrator(
         if (candidates.Count == 1) return candidates[0];
 
         var interval = rule.RotationIntervalMinutes;
-        var slot = interval is > 0
-            ? now.ToUnixTimeMinutes() / interval.Value
-            : 0;
+        if (interval is not > 0) return candidates[0];
+
+        var elapsedMinutes = GetElapsedMinutesSinceRuleStart(rule, now);
+        var slot = Math.Max(0, elapsedMinutes / interval.Value);
 
         if (rule.RotationMode == WallpaperRotationMode.Sequential)
-            return candidates[(int)(Math.Abs(slot) % candidates.Count)];
+            return candidates[(int)(slot % candidates.Count)];
 
         var seed = HashCode.Combine(rule.Id, slot);
         var random = new Random(seed);
         return candidates[random.Next(candidates.Count)];
+    }
+
+    private static long GetElapsedMinutesSinceRuleStart(WallpaperRule rule, DateTimeOffset now)
+    {
+        var local = now.LocalDateTime;
+        var time = TimeOnly.FromDateTime(local);
+        var startDate = local.Date;
+
+        if (rule.End < rule.Start && time < rule.End)
+            startDate = startDate.AddDays(-1);
+
+        var start = new DateTime(
+            startDate.Year,
+            startDate.Month,
+            startDate.Day,
+            rule.Start.Hour,
+            rule.Start.Minute,
+            0,
+            local.Kind);
+
+        return Math.Max(0, (long)Math.Floor((local - start).TotalMinutes));
     }
 
     private static bool IsSupportedFile(string path) =>
@@ -126,9 +141,4 @@ public sealed class WallpaperOrchestrator(
         if (a is null || a.RuleId != b.RuleId || a.Style != b.Style || a.Assignments.Count != b.Assignments.Count) return false;
         return a.Assignments.OrderBy(x => x.MonitorId).SequenceEqual(b.Assignments.OrderBy(x => x.MonitorId));
     }
-}
-
-internal static class DateTimeOffsetExtensions
-{
-    public static long ToUnixTimeMinutes(this DateTimeOffset value) => value.ToUnixTimeSeconds() / 60;
 }
