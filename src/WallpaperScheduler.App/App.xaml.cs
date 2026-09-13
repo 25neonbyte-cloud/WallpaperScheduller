@@ -24,11 +24,13 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IMonitorService>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<IWallpaperApplier>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<WallpaperOrchestrator>();
+        services.AddSingleton<WallpaperSchedulerHostedLoop>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
         _services = services.BuildServiceProvider();
         _services.GetRequiredService<MainWindow>().Show();
+        _services.GetRequiredService<WallpaperSchedulerHostedLoop>().Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
