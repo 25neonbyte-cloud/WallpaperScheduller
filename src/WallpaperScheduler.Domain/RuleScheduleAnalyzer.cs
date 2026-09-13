@@ -39,7 +39,7 @@ public static class RuleScheduleAnalyzer
         var priority = b.Priority.CompareTo(a.Priority);
         if (priority != 0) return priority;
 
-        var order = a.Order.CompareTo(b.Order);
+        var order = b.Order.CompareTo(a.Order);
         if (order != 0) return order;
 
         return a.Id.CompareTo(b.Id);
