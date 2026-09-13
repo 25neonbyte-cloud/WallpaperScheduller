@@ -1,9 +1,9 @@
 <Window x:Class="WallpaperScheduler.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Wallpaper Scheduler" Width="980" Height="700" MinWidth="760" MinHeight="560"
-        WindowStartupLocation="CenterScreen">
-    <Grid Margin="28">
+        Title="Wallpaper Scheduler" Width="1120" Height="820" MinWidth="900" MinHeight="640"
+        WindowStartupLocation="CenterScreen" Background="#F5F6F8">
+    <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -11,34 +11,138 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel>
-            <TextBlock Text="Wallpaper Scheduler" FontSize="30" FontWeight="SemiBold"/>
-            <TextBlock Margin="0,8,0,0" Text="Windows 11 · regras por dia, horário e monitor" Opacity="0.7"/>
-        </StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Wallpaper Scheduler" FontSize="30" FontWeight="SemiBold"/>
+                <TextBlock Margin="0,6,0,0" Text="Ciclo diário personalizável · arquivos, pastas e rotação independente" Opacity="0.65"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Width="120" Height="36" Margin="0,0,10,0" Content="Salvar" Command="{Binding SaveCommand}"/>
+                <Button Width="140" Height="36" Content="Aplicar agora" Command="{Binding ApplyNowCommand}"/>
+            </StackPanel>
+        </Grid>
 
-        <Border Grid.Row="1" Margin="0,28,0,16" Padding="20" BorderThickness="1" BorderBrush="#33000000" CornerRadius="10">
+        <Border Grid.Row="1" Margin="0,18,0,14" Padding="14" Background="White" BorderBrush="#22000000" BorderThickness="1" CornerRadius="10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="Monitores detectados" FontSize="18" FontWeight="SemiBold"/>
-                    <TextBlock Margin="0,12,24,0" FontFamily="Consolas" TextWrapping="Wrap" Text="{Binding MonitorDiagnostics}"/>
-                </StackPanel>
-                <Button Grid.Column="1" Width="130" Height="34" VerticalAlignment="Top" Content="Atualizar" Command="{Binding RefreshMonitorsCommand}"/>
+                <TextBlock VerticalAlignment="Center" Text="{Binding MonitorDiagnostics}" FontWeight="SemiBold"/>
+                <Button Grid.Column="1" Width="110" Height="30" Content="Atualizar" Command="{Binding RefreshMonitorsCommand}"/>
             </Grid>
         </Border>
 
-        <Border Grid.Row="2" Padding="24" BorderThickness="1" BorderBrush="#33000000" CornerRadius="10">
-            <StackPanel>
-                <TextBlock Text="Teste de aplicação" FontSize="18" FontWeight="SemiBold"/>
-                <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="A configuração é lida de %LOCALAPPDATA%\WallpaperScheduler\config.json. O botão abaixo avalia a regra vigente, detecta os monitores ativos e aplica o estado calculado usando IDesktopWallpaper."/>
-                <Button Margin="0,24,0,0" Width="150" Height="38" HorizontalAlignment="Left" Content="Aplicar agora" Command="{Binding ApplyNowCommand}"/>
-                <TextBlock Margin="0,18,0,0" Text="{Binding Status}" TextWrapping="Wrap"/>
-            </StackPanel>
-        </Border>
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="3" Margin="0,18,0,0" Opacity="0.55" Text="Baseline v0.2 — diagnóstico multi-monitor para validação dos Device Paths."/>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Períodos do dia" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Margin="0,4,0,0" Opacity="0.62" Text="O ciclo padrão é apenas um ponto de partida. Todos os períodos podem ser alterados, removidos ou recriados."/>
+                </StackPanel>
+                <Button Grid.Column="1" Width="130" Height="34" Content="+ Novo período" Command="{Binding AddPeriodCommand}"/>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Periods}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,14" Padding="18" Background="White" BorderBrush="#22000000" BorderThickness="1" CornerRadius="12">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="2*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <CheckBox VerticalAlignment="Center" Margin="0,0,12,0" IsChecked="{Binding Enabled}" Content="Ativo"/>
+                                        <TextBox Grid.Column="1" Height="32" VerticalContentAlignment="Center" FontWeight="SemiBold" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Column="2" Margin="18,0,6,0" VerticalAlignment="Center" Text="Início"/>
+                                        <TextBox Grid.Column="3" Width="64" Height="32" VerticalContentAlignment="Center" TextAlignment="Center" Text="{Binding StartText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Column="4" Margin="12,0,6,0" VerticalAlignment="Center" Text="Fim"/>
+                                        <TextBox Grid.Column="5" Width="64" Height="32" VerticalContentAlignment="Center" TextAlignment="Center" Text="{Binding EndText, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock VerticalAlignment="Center" Text="Rotação" Margin="0,0,8,0"/>
+                                        <ComboBox Grid.Column="1" Height="30" ItemsSource="{Binding DataContext.RotationModes, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding RotationMode}"/>
+                                        <TextBlock Grid.Column="2" Margin="18,0,8,0" VerticalAlignment="Center" Text="Intervalo (min)"/>
+                                        <TextBox Grid.Column="3" Height="30" VerticalContentAlignment="Center" TextAlignment="Center" Text="{Binding RotationIntervalMinutes, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" ToolTip="Vazio = troca somente ao entrar neste período"/>
+                                        <TextBlock Grid.Column="4" Margin="18,0,8,0" VerticalAlignment="Center" Text="Ajuste"/>
+                                        <ComboBox Grid.Column="5" Height="30" ItemsSource="{Binding DataContext.WallpaperStyles, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Style}"/>
+                                        <CheckBox Grid.Column="7" Margin="18,0,0,0" VerticalAlignment="Center" IsChecked="{Binding IncludeSubfolders}" Content="Incluir subpastas"/>
+                                    </Grid>
+
+                                    <Border Margin="0,16,0,0" Padding="18" MinHeight="105"
+                                            AllowDrop="True" Drop="WallpaperDropZone_Drop"
+                                            Tag="{Binding}"
+                                            BorderThickness="2" BorderBrush="#667A7F8A" CornerRadius="10" Background="#FAFBFC">
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="Arraste e solte wallpapers ou pastas aqui" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                            <TextBlock Margin="0,5,0,0" Text="Os arquivos não são movidos: o aplicativo memoriza seus caminhos originais." Opacity="0.58" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Sources}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock VerticalAlignment="Center" Text="{Binding Display}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"/>
+                                                    <Button Grid.Column="1" Margin="10,0,0,0" Padding="10,3" Content="Remover" Click="RemoveSource_Click" Tag="{Binding}"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Grid Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Opacity="0.55" VerticalAlignment="Center" Text="Intervalos usam início inclusivo e fim exclusivo. Períodos podem atravessar a meia-noite."/>
+                                        <Button Grid.Column="1" Width="120" Height="30" Content="Excluir período" Command="{Binding DataContext.RemovePeriodCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="3" Margin="0,14,0,0" Padding="12" Background="White" BorderBrush="#22000000" BorderThickness="1" CornerRadius="8">
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
+        </Border>
     </Grid>
 </Window>
