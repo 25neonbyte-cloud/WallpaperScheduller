@@ -21,7 +21,11 @@ public sealed class RuleEngine : IRuleEngine
             return new(null, candidates, "Nenhuma regra corresponde ao momento atual.");
 
         var winner = candidates[0];
-        return new(winner, candidates, $"Regra '{winner.Name}' venceu por priority DESC, order DESC, id ASC.");
+        var reason = candidates.Count == 1
+            ? $"Regra '{winner.Name}' ativa."
+            : $"Sobreposição detectada: {candidates.Count} períodos ativos. '{winner.Name}' tem precedência por ser o período configurado mais tarde entre os de mesma prioridade.";
+
+        return new(winner, candidates, reason);
     }
 
     public bool IsMatch(WallpaperRule rule, DateTimeOffset now)
