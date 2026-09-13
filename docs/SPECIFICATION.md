@@ -1,6 +1,6 @@
 # Wallpaper Scheduler — Especificação Mestre
 
-**Versão:** 1.0  
+**Versão:** 2.0  
 **Plataforma:** Windows 11  
 **Stack:** C# / .NET 10 LTS / WPF  
 **Arquitetura:** MVVM + DI
@@ -9,7 +9,7 @@ Este documento é a fonte de verdade do projeto. Código ou implementação que 
 
 ## Objetivo
 
-Trocar wallpapers automaticamente conforme regras configuráveis de dias, horários e monitores, operando localmente, sem conta, internet, telemetria ou privilégios administrativos.
+Trocar wallpapers automaticamente conforme regras configuráveis de dias, horários, fontes e monitores, operando localmente, sem conta, internet, telemetria ou privilégios administrativos.
 
 ## Invariantes
 
@@ -19,10 +19,26 @@ Trocar wallpapers automaticamente conforme regras configuráveis de dias, horár
 - Wallpaper só é reaplicado quando o estado desejado muda.
 - Monitor ausente não invalida os demais.
 - Configuração utiliza JSON local versionado e backup.
+- Identificadores técnicos do Windows não são expostos como configuração obrigatória ao usuário.
+- O ciclo diário fornecido pelo aplicativo é somente um padrão inicial; sua estrutura é 100% personalizável.
+
+## Ciclo diário padrão
+
+Uma instalação/configuração nova oferece inicialmente cinco períodos editáveis:
+
+1. `00:00 → 05:30` — **Após meia-noite**
+2. `05:30 → 10:00` — **Nascer do sol**
+3. `10:00 → 16:00` — **Dia claro**
+4. `16:00 → 18:45` — **Pôr do sol**
+5. `18:45 → 00:00` — **Noite**
+
+Os nomes, horários, quantidade de períodos, ordem, prioridade, dias, fontes, estilo e rotação podem ser alterados. Períodos podem ser criados e removidos livremente.
+
+A intenção visual do preset é apenas orientativa: manhã confortável, dia claro/vibrante, pôr do sol aquecido e noite de alto contraste/baixa luminosidade. O aplicativo não classifica nem altera automaticamente as cores das imagens no MVP; o usuário associa as coleções desejadas a cada período.
 
 ## Motor de regras
 
-Cada regra possui `enabled`, `priority`, `order`, `daysOfWeek`, `start`, `end`, `style`, `scope` e imagem(ns).
+Cada regra possui `enabled`, `priority`, `order`, `daysOfWeek`, `start`, `end`, `style`, `scope`, fonte(s), modo de rotação e intervalo opcional.
 
 Resolução determinística:
 
@@ -35,12 +51,42 @@ Resolução determinística:
 
 Intervalos usam `[start,end)`. Se `end < start`, o intervalo atravessa meia-noite e `daysOfWeek` representa o dia em que ele começa. Assim, domingo `18:00→06:00` continua válido segunda às 02:00.
 
+## Fontes de wallpaper
+
+Uma regra pode receber:
+
+- um ou vários arquivos;
+- uma ou várias pastas;
+- combinação de arquivos e pastas;
+- inclusão opcional de subpastas.
+
+A UI oferece área de **arrastar e soltar**. Os arquivos não são copiados para o aplicativo; seus caminhos originais são persistidos. Fonte removida ou inacessível gera estado de indisponibilidade sem derrubar o restante da configuração.
+
+Formatos do MVP: JPG/JPEG, PNG e BMP.
+
+### Rotação por regra/período
+
+Cada regra escolhe independentemente:
+
+- `Sequential`: percorre a coleção em ordem determinística;
+- `Random`: seleciona de forma pseudoaleatória por janela de tempo.
+
+Cada regra possui seu próprio `rotationIntervalMinutes`. Valor vazio/nulo significa trocar somente na entrada da regra/período (ou quando outra condição exigir reaplicação).
+
 ## Multi-monitor
 
-- `AllMonitors`: uma imagem para todos os monitores ativos.
-- `PerMonitor`: associação persistente por device path retornado por `IDesktopWallpaper`.
+A configuração de produto utiliza **perfis lógicos de monitor**, não `MONITOR_DEVICE_PATH` diretamente.
+
+Fluxo:
+
+`perfil lógico → binding local → monitor físico detectado → device path atual → IDesktopWallpaper`
+
+O binding deve tentar reconhecer monitores por identidade de hardware persistente quando disponível (fabricante/modelo/serial/EDID ou equivalente) e usar device path apenas como vínculo operacional atual. Em nova máquina ou hardware ambíguo, o usuário pode associar o perfil lógico uma vez e o aplicativo memoriza essa relação localmente.
+
+- `AllMonitors`: uma fonte/estado para todos os monitores ativos.
+- `PerMonitor`: fontes independentes por perfil lógico.
 - Monitor ausente é ignorado temporariamente.
-- Monitor que retorna deve receber novamente a configuração da regra vigente.
+- Monitor que retorna deve receber novamente a configuração vigente.
 
 ## Aplicação
 
@@ -48,15 +94,24 @@ A infraestrutura Windows utiliza `IDesktopWallpaper`/COM. Domain e Application n
 
 Fluxo:
 
-`evento/horário → detectar monitores → avaliar regras → construir desired state → comparar → aplicar diferenças → registrar resultado`
+`evento/horário → detectar/reconciliar monitores → avaliar regras → resolver fonte/rotação → construir desired state → comparar → aplicar diferenças → registrar resultado`
 
 ## Scheduler alvo do MVP
 
-Processo residente em System Tray, inicialização opcional com Windows, eventos de display/sessão/energia, próxima transição calculada e heartbeat de segurança padrão de 60 s.
+Processo residente em System Tray, inicialização opcional com Windows, eventos de display/sessão/energia, próxima transição calculada, próxima rotação calculada e heartbeat de segurança padrão de 60 s.
 
 ## UI alvo do MVP
 
-Lista de regras, filtros, editor, seleção de dias/horário/prioridade/estilo, seleção de imagem, configuração por monitor, preview, validação, Aplicar agora, importação/exportação JSON e diagnóstico.
+- lista/editor de períodos/regras;
+- criar, editar, excluir e reordenar;
+- dias da semana, início/fim, prioridade e estilo;
+- modo sequencial/aleatório e intervalo individual;
+- drag-and-drop de imagens e pastas;
+- configuração global ou por monitor lógico;
+- preview e validação de fontes;
+- Aplicar agora;
+- importação/exportação JSON;
+- diagnóstico técnico sem exigir IDs do usuário.
 
 ## Fora do MVP
 
@@ -65,12 +120,17 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 ## Critérios críticos
 
 - Ao iniciar dentro de uma regra vigente, aplicar essa regra.
+- Cada período do preset inicial pode ser alterado/removido sem restrição estrutural.
+- Uma pasta com múltiplas imagens deve respeitar o modo e intervalo configurados para sua regra.
 - Desconectar um monitor não interrompe o outro.
 - Reconectar um monitor reaplica sua associação válida.
 - Nenhuma regra vigente significa não alterar o wallpaper.
-- Imagem removida invalida somente a associação/regra afetada.
+- Imagem/pasta removida invalida somente a fonte afetada.
 - CI deve restaurar, compilar e testar em Windows.
 
 ## Estado da implementação
 
-`v0.1`: vertical slice inicial — Domain, Rule Engine, persistência JSON, COM `IDesktopWallpaper`, detecção de monitores, WPF/MVVM, Apply Now, testes e CI. Scheduler residente, tray e editor completo permanecem para a próxima etapa.
+- `v0.1`: vertical slice — Domain, Rule Engine, JSON, COM `IDesktopWallpaper`, WPF/MVVM, Apply Now, testes e CI.
+- `v0.2`: diagnóstico e validação real de múltiplos monitores.
+- `v0.3` em desenvolvimento: schema v2, ciclo diário editável, arquivos/pastas, rotação sequencial/aleatória por período e editor WPF com drag-and-drop.
+- Próximos blocos: binding persistente de perfis lógicos de monitor, scheduler residente/tray/eventos e acabamento/importação/exportação.
