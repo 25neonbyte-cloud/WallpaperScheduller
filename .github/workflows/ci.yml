@@ -26,7 +26,7 @@ jobs:
         run: dotnet test tests/WallpaperScheduler.Domain.Tests/WallpaperScheduler.Domain.Tests.csproj -c Release --no-build --logger "trx;LogFileName=tests.trx"
 
       - name: Publish Windows x64
-        run: dotnet publish src/WallpaperScheduler.App/WallpaperScheduler.App.csproj -c Release -r win-x64 --self-contained false -o artifacts/WallpaperScheduler
+        run: dotnet publish src/WallpaperScheduler.App/WallpaperScheduler.App.csproj -c Release -r win-x64 -o artifacts/WallpaperScheduler
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
