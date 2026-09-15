@@ -28,14 +28,16 @@ public sealed class TrayIconService : IDisposable
         _startupService = startupService;
         _configStore = configStore;
 
-        var menu = new WinForms.ContextMenuStrip();
+        var startupStatus = SafeReadStartupStatus();
+        var menu = new WinForms.ContextMenuStrip { ShowItemToolTips = true };
         var openItem = new WinForms.ToolStripMenuItem("Abrir Wallpaper Scheduler", null, (_, _) => ShowWindow());
         var applyItem = new WinForms.ToolStripMenuItem("Aplicar agora", null, async (_, _) => await _loop.ApplyNowAsync());
         _pauseItem = new WinForms.ToolStripMenuItem("Pausar automação", null, (_, _) => TogglePause());
         _startupItem = new WinForms.ToolStripMenuItem("Iniciar com o Windows", null, async (_, _) => await ToggleStartupAsync())
         {
-            Checked = SafeReadStartupState(),
-            CheckOnClick = false
+            Checked = startupStatus.Enabled && startupStatus.Valid,
+            CheckOnClick = false,
+            ToolTipText = startupStatus.Message
         };
         var exitItem = new WinForms.ToolStripMenuItem("Sair", null, (_, _) => ExitApplication());
 
@@ -67,6 +69,8 @@ public sealed class TrayIconService : IDisposable
             _window.Hide();
         else
             ShowWindow();
+
+        _ = ReconcileStartupRegistrationAsync();
     }
 
     private void ShowWindow()
@@ -102,10 +106,42 @@ public sealed class TrayIconService : IDisposable
         _notifyIcon.Text = _loop.IsPaused ? "Wallpaper Scheduler — pausado" : "Wallpaper Scheduler";
     }
 
-    private bool SafeReadStartupState()
+    private StartupRegistrationStatus SafeReadStartupStatus()
     {
-        try { return _startupService.IsEnabled; }
-        catch { return false; }
+        try { return _startupService.GetStatus(); }
+        catch (Exception ex) { return new(false, false, $"Falha ao verificar inicialização: {ex.Message}"); }
+    }
+
+    private async Task ReconcileStartupRegistrationAsync()
+    {
+        try
+        {
+            var config = await _configStore.LoadAsync();
+            var status = SafeReadStartupStatus();
+
+            if (config.Scheduler.StartWithWindows && (!status.Enabled || !status.Valid))
+            {
+                _startupService.SetEnabled(true);
+                status = _startupService.GetStatus();
+                _startupItem.Checked = status.Enabled && status.Valid;
+                _startupItem.ToolTipText = status.Message;
+
+                if (_startupItem.Checked)
+                    ShowStartupNotification("Inicialização corrigida", "O Wallpaper Scheduler foi registrado novamente no Startup do usuário.", WinForms.ToolTipIcon.Info);
+                else
+                    ShowStartupNotification("Inicialização não validada", status.Message, WinForms.ToolTipIcon.Warning);
+                return;
+            }
+
+            _startupItem.Checked = status.Enabled && status.Valid;
+            _startupItem.ToolTipText = status.Message;
+        }
+        catch (Exception ex)
+        {
+            _startupItem.Checked = false;
+            _startupItem.ToolTipText = ex.Message;
+            ShowStartupNotification("Falha na inicialização automática", ex.Message, WinForms.ToolTipIcon.Error);
+        }
     }
 
     private async Task ToggleStartupAsync()
@@ -114,16 +150,37 @@ public sealed class TrayIconService : IDisposable
         try
         {
             _startupService.SetEnabled(enabled);
-            _startupItem.Checked = enabled;
+            var status = _startupService.GetStatus();
+            _startupItem.Checked = enabled && status.Enabled && status.Valid;
+            _startupItem.ToolTipText = status.Message;
+
+            if (enabled && !_startupItem.Checked)
+                throw new InvalidOperationException(status.Message);
 
             var config = await _configStore.LoadAsync();
             config.Scheduler.StartWithWindows = enabled;
             await _configStore.SaveAsync(config);
+
+            ShowStartupNotification(
+                enabled ? "Inicialização ativada" : "Inicialização desativada",
+                status.Message,
+                WinForms.ToolTipIcon.Info);
         }
-        catch
+        catch (Exception ex)
         {
-            _startupItem.Checked = SafeReadStartupState();
+            var status = SafeReadStartupStatus();
+            _startupItem.Checked = status.Enabled && status.Valid;
+            _startupItem.ToolTipText = status.Message;
+            ShowStartupNotification("Falha ao alterar inicialização", ex.Message, WinForms.ToolTipIcon.Error);
         }
+    }
+
+    private void ShowStartupNotification(string title, string text, WinForms.ToolTipIcon icon)
+    {
+        _notifyIcon.BalloonTipTitle = title;
+        _notifyIcon.BalloonTipText = text;
+        _notifyIcon.BalloonTipIcon = icon;
+        _notifyIcon.ShowBalloonTip(5000);
     }
 
     private void ExitApplication()
