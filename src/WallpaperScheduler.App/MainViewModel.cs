@@ -64,8 +64,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand AddPeriodCommand { get; }
     public ICommand RemovePeriodCommand { get; }
 
-    public void AddDroppedSources(RuleEditorItem item, IEnumerable<string> paths) => AddSources(item.Sources, paths, item.Name);
-    public void AddDroppedMonitorSources(MonitorSourceEditorItem item, IEnumerable<string> paths) => AddSources(item.Sources, paths, item.ProfileName);
+    public void AddDroppedSources(RuleEditorItem item, IEnumerable<string> paths)
+    {
+        item.Scope = WallpaperScope.AllMonitors;
+        AddSources(item.Sources, paths, item.Name);
+    }
+
+    public void AddDroppedMonitorSources(MonitorSourceEditorItem item, IEnumerable<string> paths)
+    {
+        var owner = Periods.FirstOrDefault(x => x.MonitorSources.Contains(item));
+        if (owner is not null)
+            owner.Scope = WallpaperScope.PerMonitor;
+        AddSources(item.Sources, paths, item.ProfileName);
+    }
 
     private void AddSources(ObservableCollection<SourceEditorItem> target, IEnumerable<string> paths, string label)
     {
@@ -269,7 +280,20 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
     public int? RotationIntervalMinutes { get => _rotationIntervalMinutes; set { _rotationIntervalMinutes = value; OnPropertyChanged(); } }
     public WallpaperRotationMode RotationMode { get => _rotationMode; set { _rotationMode = value; OnPropertyChanged(); } }
     public WallpaperStyle Style { get => _style; set { _style = value; OnPropertyChanged(); } }
-    public WallpaperScope Scope { get => _scope; set { _scope = value; OnPropertyChanged(); } }
+    public WallpaperScope Scope
+    {
+        get => _scope;
+        set
+        {
+            if (_scope == value) return;
+            _scope = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsAllMonitors));
+            OnPropertyChanged(nameof(IsPerMonitor));
+        }
+    }
+    public bool IsAllMonitors => Scope == WallpaperScope.AllMonitors;
+    public bool IsPerMonitor => Scope == WallpaperScope.PerMonitor;
     public bool IncludeSubfolders { get => _includeSubfolders; set { _includeSubfolders = value; OnPropertyChanged(); } }
     public HashSet<DayOfWeek> DaysOfWeek { get; set; } = [];
     public ObservableCollection<SourceEditorItem> Sources { get; } = [];
