@@ -51,6 +51,30 @@ public sealed class MonitorProfileResolverTests
     }
 
     [Fact]
+    public async Task Exact_active_bindings_are_reserved_before_hardware_fallback()
+    {
+        var stale = new MonitorProfile { Name = "Antigo" };
+        var active = new MonitorProfile { Name = "Atual" };
+        var config = new AppConfig { Rules = [], MonitorProfiles = [stale, active] };
+        var bindingStore = new FakeBindingStore
+        {
+            Bindings =
+            [
+                new MonitorBinding(stale.Id, "DISPLAY#SAME", "missing-path", 1920, 1080),
+                new MonitorBinding(active.Id, "DISPLAY#SAME", "active-path", 1920, 1080)
+            ]
+        };
+        var resolver = new MonitorProfileResolver(bindingStore, new FakeConfigStore(config));
+
+        var result = await resolver.ResolveAsync(
+            config,
+            [new MonitorInfo("active-path", "Monitor 1", 1920, 1080, "DISPLAY#SAME")]);
+
+        Assert.Null(result.Single(x => x.ProfileId == stale.Id).Monitor);
+        Assert.Equal("active-path", result.Single(x => x.ProfileId == active.Id).Monitor?.Id);
+    }
+
+    [Fact]
     public async Task Identical_monitors_are_not_silently_swapped_or_duplicated_when_binding_is_lost()
     {
         var profile = new MonitorProfile { Name = "Monitor principal" };
@@ -96,6 +120,12 @@ public sealed class MonitorProfileResolverTests
         public Task SaveAsync(IReadOnlyList<MonitorBinding> bindings, CancellationToken cancellationToken = default)
         {
             Bindings = bindings.ToList();
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(Guid profileId, CancellationToken cancellationToken = default)
+        {
+            Bindings = Bindings.Where(x => x.ProfileId != profileId).ToList();
             return Task.CompletedTask;
         }
     }
