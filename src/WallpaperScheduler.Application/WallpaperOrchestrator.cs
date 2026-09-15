@@ -10,11 +10,6 @@ public sealed class WallpaperOrchestrator(
     IWallpaperApplier wallpaperApplier,
     IClock clock)
 {
-    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg", ".jpeg", ".png", ".bmp"
-    };
-
     private WallpaperState? _lastApplied;
 
     public Task<ApplyResult> ApplyCurrentAsync(CancellationToken cancellationToken = default) =>
@@ -76,8 +71,7 @@ public sealed class WallpaperOrchestrator(
                 continue;
             }
 
-            // Compatibilidade com schema v1 durante migração.
-            if (rule.PerMonitor.TryGetValue(resolution.Monitor.Id, out var legacy) && File.Exists(legacy))
+            if (rule.PerMonitor.TryGetValue(resolution.Monitor.Id, out var legacy) && WallpaperFileSupport.IsSupportedExistingFile(legacy))
                 result.Add(new(resolution.Monitor.Id, legacy));
         }
 
@@ -85,7 +79,7 @@ public sealed class WallpaperOrchestrator(
     }
 
     private static string? ResolveLegacyImage(string? image) =>
-        !string.IsNullOrWhiteSpace(image) && File.Exists(image) ? image : null;
+        !string.IsNullOrWhiteSpace(image) && WallpaperFileSupport.IsSupportedExistingFile(image) ? image : null;
 
     private static string? ResolveSource(
         WallpaperRule rule,
@@ -100,7 +94,7 @@ public sealed class WallpaperOrchestrator(
         {
             if (item.Kind == WallpaperSourceKind.File)
             {
-                if (IsSupportedFile(item.Path)) candidates.Add(item.Path);
+                if (WallpaperFileSupport.IsSupportedExistingFile(item.Path)) candidates.Add(item.Path);
                 continue;
             }
 
@@ -108,7 +102,7 @@ public sealed class WallpaperOrchestrator(
             var option = source.IncludeSubfolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
             try
             {
-                candidates.AddRange(Directory.EnumerateFiles(item.Path, "*.*", option).Where(IsSupportedFile));
+                candidates.AddRange(Directory.EnumerateFiles(item.Path, "*.*", option).Where(WallpaperFileSupport.IsSupportedExistingFile));
             }
             catch (UnauthorizedAccessException) { }
             catch (IOException) { }
@@ -156,9 +150,6 @@ public sealed class WallpaperOrchestrator(
 
         return Math.Max(0, (long)Math.Floor((local - start).TotalMinutes));
     }
-
-    private static bool IsSupportedFile(string path) =>
-        File.Exists(path) && SupportedExtensions.Contains(Path.GetExtension(path));
 
     private static bool EqualsState(WallpaperState? a, WallpaperState b)
     {

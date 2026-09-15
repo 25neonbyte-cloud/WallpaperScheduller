@@ -6,12 +6,15 @@ namespace WallpaperScheduler.App;
 public sealed class WallpaperSchedulerHostedLoop : IDisposable
 {
     private readonly WallpaperOrchestrator _orchestrator;
+    private readonly IAppLogger _logger;
     private readonly DispatcherTimer _timer;
     private bool _running;
+    private bool _started;
 
-    public WallpaperSchedulerHostedLoop(WallpaperOrchestrator orchestrator)
+    public WallpaperSchedulerHostedLoop(WallpaperOrchestrator orchestrator, IAppLogger logger)
     {
         _orchestrator = orchestrator;
+        _logger = logger;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(30)
@@ -25,8 +28,9 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
 
     public void Start()
     {
-        if (_timer.IsEnabled) return;
-        _timer.Start();
+        if (_started) return;
+        _started = true;
+        if (!IsPaused) _timer.Start();
         _ = EvaluateAsync();
     }
 
@@ -34,9 +38,20 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
     {
         if (IsPaused == paused) return;
         IsPaused = paused;
-        PauseStateChanged?.Invoke(this, EventArgs.Empty);
-        if (!paused)
+
+        if (paused)
+        {
+            _timer.Stop();
+            _logger.Info("Automação pausada pelo usuário.");
+        }
+        else
+        {
+            if (_started && !_timer.IsEnabled) _timer.Start();
+            _logger.Info("Automação retomada pelo usuário.");
             _ = EvaluateAsync();
+        }
+
+        PauseStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public Task ApplyNowAsync() => EvaluateAsync(ignorePause: true, forceReapply: true);
@@ -56,9 +71,9 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
             else
                 await _orchestrator.ApplyCurrentAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            // O loop não encerra por falha transitória; logging estruturado entra no hardening.
+            _logger.Error("Falha durante a avaliação/aplicação automática de wallpaper.", ex);
         }
         finally
         {
@@ -68,6 +83,7 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
 
     public void Dispose()
     {
+        _started = false;
         _timer.Stop();
         _timer.Tick -= OnTick;
     }

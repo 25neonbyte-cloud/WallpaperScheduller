@@ -44,6 +44,20 @@ public interface IConfigStore
     Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default);
 }
 
+public interface IConfigTransferService
+{
+    Task ExportAsync(AppConfig config, string destinationPath, CancellationToken cancellationToken = default);
+    Task<AppConfig> ImportAsync(string sourcePath, CancellationToken cancellationToken = default);
+}
+
+public interface IAppLogger
+{
+    string LogFilePath { get; }
+    void Info(string message);
+    void Warning(string message);
+    void Error(string message, Exception? exception = null);
+}
+
 public interface IMonitorBindingStore
 {
     Task<IReadOnlyList<MonitorBinding>> LoadAsync(CancellationToken cancellationToken = default);
