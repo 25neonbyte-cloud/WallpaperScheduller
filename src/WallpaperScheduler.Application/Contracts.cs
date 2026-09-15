@@ -31,6 +31,7 @@ public interface IMonitorBindingStore
 {
     Task<IReadOnlyList<MonitorBinding>> LoadAsync(CancellationToken cancellationToken = default);
     Task SaveAsync(IReadOnlyList<MonitorBinding> bindings, CancellationToken cancellationToken = default);
+    Task RemoveAsync(Guid profileId, CancellationToken cancellationToken = default);
 }
 
 public interface IMonitorProfileResolver
