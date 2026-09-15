@@ -1,8 +1,6 @@
-using System.Windows.Controls;
-
 namespace WallpaperScheduler.App;
 
-public partial class VisualComfortPanel : UserControl
+public partial class VisualComfortPanel : System.Windows.Controls.UserControl
 {
     public VisualComfortPanel()
     {
