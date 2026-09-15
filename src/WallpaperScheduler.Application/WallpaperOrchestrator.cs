@@ -125,9 +125,49 @@ public sealed class WallpaperOrchestrator(
         if (rule.RotationMode == WallpaperRotationMode.Sequential)
             return candidates[(int)(slot % candidates.Count)];
 
-        var seed = HashCode.Combine(rule.Id, profileId, slot);
-        var random = new Random(seed);
-        return candidates[random.Next(candidates.Count)];
+        return ResolveShuffledCandidate(candidates, rule.Id, profileId, slot);
+    }
+
+    private static string ResolveShuffledCandidate(
+        IReadOnlyList<string> candidates,
+        Guid ruleId,
+        Guid? profileId,
+        long slot)
+    {
+        var cycle = slot / candidates.Count;
+        var indexInCycle = (int)(slot % candidates.Count);
+        var shuffled = candidates.ToArray();
+        var random = new Random(CreateStableShuffleSeed(ruleId, profileId, cycle));
+
+        for (var index = shuffled.Length - 1; index > 0; index--)
+        {
+            var swapWith = random.Next(index + 1);
+            (shuffled[index], shuffled[swapWith]) = (shuffled[swapWith], shuffled[index]);
+        }
+
+        return shuffled[indexInCycle];
+    }
+
+    private static int CreateStableShuffleSeed(Guid ruleId, Guid? profileId, long cycle)
+    {
+        unchecked
+        {
+            uint hash = 2166136261;
+
+            foreach (var value in ruleId.ToByteArray())
+                hash = (hash ^ value) * 16777619;
+
+            if (profileId is Guid monitorProfileId)
+            {
+                foreach (var value in monitorProfileId.ToByteArray())
+                    hash = (hash ^ value) * 16777619;
+            }
+
+            for (var shift = 0; shift < 64; shift += 8)
+                hash = (hash ^ (byte)(cycle >> shift)) * 16777619;
+
+            return (int)hash;
+        }
     }
 
     private static long GetElapsedMinutesSinceRuleStart(WallpaperRule rule, DateTimeOffset now)
