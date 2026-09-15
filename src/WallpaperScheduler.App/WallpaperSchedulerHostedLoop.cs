@@ -19,6 +19,10 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
         _timer.Tick += OnTick;
     }
 
+    public bool IsPaused { get; private set; }
+
+    public event EventHandler? PauseStateChanged;
+
     public void Start()
     {
         if (_timer.IsEnabled) return;
@@ -26,11 +30,22 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
         _ = EvaluateAsync();
     }
 
+    public void SetPaused(bool paused)
+    {
+        if (IsPaused == paused) return;
+        IsPaused = paused;
+        PauseStateChanged?.Invoke(this, EventArgs.Empty);
+        if (!paused)
+            _ = EvaluateAsync();
+    }
+
+    public Task ApplyNowAsync() => EvaluateAsync(force: true);
+
     private async void OnTick(object? sender, EventArgs e) => await EvaluateAsync();
 
-    private async Task EvaluateAsync()
+    private async Task EvaluateAsync(bool force = false)
     {
-        if (_running) return;
+        if (_running || (IsPaused && !force)) return;
         try
         {
             _running = true;
