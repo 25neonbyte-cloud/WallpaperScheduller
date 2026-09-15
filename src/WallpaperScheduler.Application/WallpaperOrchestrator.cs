@@ -1,0 +1,199 @@
+using WallpaperScheduler.Domain;
+
+namespace WallpaperScheduler.Application;
+
+public sealed class WallpaperOrchestrator(
+    IConfigStore configStore,
+    IRuleEngine ruleEngine,
+    IMonitorService monitorService,
+    IMonitorProfileResolver monitorProfileResolver,
+    IWallpaperApplier wallpaperApplier,
+    IClock clock)
+{
+    private WallpaperState? _lastApplied;
+
+    public Task<ApplyResult> ApplyCurrentAsync(CancellationToken cancellationToken = default) =>
+        ApplyCurrentCoreAsync(forceReapply: false, cancellationToken);
+
+    public Task<ApplyResult> ReapplyCurrentAsync(CancellationToken cancellationToken = default) =>
+        ApplyCurrentCoreAsync(forceReapply: true, cancellationToken);
+
+    private async Task<ApplyResult> ApplyCurrentCoreAsync(bool forceReapply, CancellationToken cancellationToken)
+    {
+        var config = await configStore.LoadAsync(cancellationToken);
+        var evaluation = ruleEngine.Evaluate(config.Rules, clock.Now);
+        if (!evaluation.HasMatch)
+            return new(false, evaluation.Reason);
+
+        var rule = evaluation.Winner!;
+        var monitors = monitorService.GetActiveMonitors();
+        var resolutions = await monitorProfileResolver.ResolveAsync(config, monitors, cancellationToken);
+        var assignments = BuildAssignments(rule, monitors, resolutions, clock.Now);
+        if (assignments.Count == 0)
+            return new(false, $"Regra '{rule.Name}' não possui imagem aplicável aos monitores ativos.");
+
+        var state = new WallpaperState(rule.Id, rule.Style, assignments);
+        if (!forceReapply && EqualsState(_lastApplied, state))
+            return new(false, evaluation.Reason + " Estado desejado já está aplicado.", state);
+
+        wallpaperApplier.Apply(state);
+        _lastApplied = state;
+        return new(true, evaluation.Reason, state);
+    }
+
+    private static List<WallpaperAssignment> BuildAssignments(
+        WallpaperRule rule,
+        IReadOnlyList<MonitorInfo> monitors,
+        IReadOnlyList<MonitorResolution> resolutions,
+        DateTimeOffset now)
+    {
+        var result = new List<WallpaperAssignment>();
+
+        if (rule.Scope == WallpaperScope.AllMonitors)
+        {
+            var image = ResolveSource(rule, rule.Source, now)
+                        ?? ResolveLegacyImage(rule.Image);
+            if (image is null) return result;
+
+            result.AddRange(monitors.Select(m => new WallpaperAssignment(m.Id, image)));
+            return result;
+        }
+
+        foreach (var resolution in resolutions)
+        {
+            if (resolution.Monitor is null || resolution.IsAmbiguous) continue;
+
+            if (rule.PerMonitorProfiles.TryGetValue(resolution.ProfileId, out var source))
+            {
+                var image = ResolveSource(rule, source, now, resolution.ProfileId);
+                if (image is not null)
+                    result.Add(new(resolution.Monitor.Id, image));
+                continue;
+            }
+
+            if (rule.PerMonitor.TryGetValue(resolution.Monitor.Id, out var legacy) && WallpaperFileSupport.IsSupportedExistingFile(legacy))
+                result.Add(new(resolution.Monitor.Id, legacy));
+        }
+
+        return result;
+    }
+
+    private static string? ResolveLegacyImage(string? image) =>
+        !string.IsNullOrWhiteSpace(image) && WallpaperFileSupport.IsSupportedExistingFile(image) ? image : null;
+
+    private static string? ResolveSource(
+        WallpaperRule rule,
+        WallpaperSource? source,
+        DateTimeOffset now,
+        Guid? profileId = null)
+    {
+        if (source is null || source.Items.Count == 0) return null;
+
+        var candidates = new List<string>();
+        foreach (var item in source.Items)
+        {
+            if (item.Kind == WallpaperSourceKind.File)
+            {
+                if (WallpaperFileSupport.IsSupportedExistingFile(item.Path)) candidates.Add(item.Path);
+                continue;
+            }
+
+            if (!Directory.Exists(item.Path)) continue;
+            var option = source.IncludeSubfolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+            try
+            {
+                candidates.AddRange(Directory.EnumerateFiles(item.Path, "*.*", option).Where(WallpaperFileSupport.IsSupportedExistingFile));
+            }
+            catch (UnauthorizedAccessException) { }
+            catch (IOException) { }
+        }
+
+        candidates = candidates
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (candidates.Count == 0) return null;
+        if (candidates.Count == 1) return candidates[0];
+
+        var interval = rule.RotationIntervalMinutes;
+        if (interval is not > 0) return candidates[0];
+
+        var elapsedMinutes = GetElapsedMinutesSinceRuleStart(rule, now);
+        var slot = Math.Max(0, elapsedMinutes / interval.Value);
+
+        if (rule.RotationMode == WallpaperRotationMode.Sequential)
+            return candidates[(int)(slot % candidates.Count)];
+
+        return ResolveShuffledCandidate(candidates, rule.Id, profileId, slot);
+    }
+
+    private static string ResolveShuffledCandidate(
+        IReadOnlyList<string> candidates,
+        Guid ruleId,
+        Guid? profileId,
+        long slot)
+    {
+        var cycle = slot / candidates.Count;
+        var indexInCycle = (int)(slot % candidates.Count);
+        var shuffled = candidates.ToArray();
+        var random = new Random(CreateStableShuffleSeed(ruleId, profileId, cycle));
+
+        for (var index = shuffled.Length - 1; index > 0; index--)
+        {
+            var swapWith = random.Next(index + 1);
+            (shuffled[index], shuffled[swapWith]) = (shuffled[swapWith], shuffled[index]);
+        }
+
+        return shuffled[indexInCycle];
+    }
+
+    private static int CreateStableShuffleSeed(Guid ruleId, Guid? profileId, long cycle)
+    {
+        unchecked
+        {
+            uint hash = 2166136261;
+
+            foreach (var value in ruleId.ToByteArray())
+                hash = (hash ^ value) * 16777619;
+
+            if (profileId is Guid monitorProfileId)
+            {
+                foreach (var value in monitorProfileId.ToByteArray())
+                    hash = (hash ^ value) * 16777619;
+            }
+
+            for (var shift = 0; shift < 64; shift += 8)
+                hash = (hash ^ (byte)(cycle >> shift)) * 16777619;
+
+            return (int)hash;
+        }
+    }
+
+    private static long GetElapsedMinutesSinceRuleStart(WallpaperRule rule, DateTimeOffset now)
+    {
+        var local = now.LocalDateTime;
+        var time = TimeOnly.FromDateTime(local);
+        var startDate = local.Date;
+
+        if (rule.End < rule.Start && time < rule.End)
+            startDate = startDate.AddDays(-1);
+
+        var start = new DateTime(
+            startDate.Year,
+            startDate.Month,
+            startDate.Day,
+            rule.Start.Hour,
+            rule.Start.Minute,
+            0,
+            local.Kind);
+
+        return Math.Max(0, (long)Math.Floor((local - start).TotalMinutes));
+    }
+
+    private static bool EqualsState(WallpaperState? a, WallpaperState b)
+    {
+        if (a is null || a.RuleId != b.RuleId || a.Style != b.Style || a.Assignments.Count != b.Assignments.Count) return false;
+        return a.Assignments.OrderBy(x => x.MonitorId).SequenceEqual(b.Assignments.OrderBy(x => x.MonitorId));
+    }
+}
