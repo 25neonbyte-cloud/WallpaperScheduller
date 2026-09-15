@@ -21,10 +21,6 @@ public sealed class MonitorProfile
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     public string Name { get; set; } = "Monitor";
-    public string? HardwareKey { get; set; }
-    public string? LastKnownDevicePath { get; set; }
-    public int? LastKnownWidth { get; set; }
-    public int? LastKnownHeight { get; set; }
 }
 
 public sealed class WallpaperRule
@@ -40,8 +36,6 @@ public sealed class WallpaperRule
     public WallpaperStyle Style { get; set; } = WallpaperStyle.Fill;
     public WallpaperScope Scope { get; set; } = WallpaperScope.AllMonitors;
     public WallpaperRotationMode RotationMode { get; set; } = WallpaperRotationMode.Sequential;
-
-    // null: troca apenas ao entrar na regra/período. Quando definido, cada regra possui seu próprio intervalo.
     public int? RotationIntervalMinutes { get; set; }
 
     // Compatibilidade com schema v1.
