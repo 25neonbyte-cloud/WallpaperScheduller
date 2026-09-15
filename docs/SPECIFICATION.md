@@ -1,6 +1,6 @@
 # Wallpaper Scheduler — Especificação Mestre
 
-**Versão:** 2.1  
+**Versão:** 2.2  
 **Plataforma:** Windows 11  
 **Stack:** C# / .NET 10 LTS / WPF  
 **Arquitetura:** MVVM + DI
@@ -34,8 +34,6 @@ Uma instalação/configuração nova oferece inicialmente cinco períodos editá
 
 Os nomes, horários, quantidade de períodos, ordem, prioridade, dias, fontes, estilo e rotação podem ser alterados. Períodos podem ser criados e removidos livremente.
 
-A intenção visual do preset é apenas orientativa: manhã confortável, dia claro/vibrante, pôr do sol aquecido e noite de alto contraste/baixa luminosidade. O aplicativo não classifica nem altera automaticamente as cores das imagens no MVP; o usuário associa as coleções desejadas a cada período.
-
 ## Motor de regras
 
 Cada regra possui `enabled`, `priority`, `order`, `daysOfWeek`, `start`, `end`, `style`, `scope`, fonte(s), modo de rotação e intervalo opcional.
@@ -55,25 +53,13 @@ Sobreposições não são silenciosas: a avaliação deve informar quando existe
 
 ## Fontes de wallpaper
 
-Uma regra pode receber:
-
-- um ou vários arquivos;
-- uma ou várias pastas;
-- combinação de arquivos e pastas;
-- inclusão opcional de subpastas.
-
-A UI oferece área de **arrastar e soltar**. Os arquivos não são copiados para o aplicativo; seus caminhos originais são persistidos. Fonte removida ou inacessível gera estado de indisponibilidade sem derrubar o restante da configuração.
+Uma regra pode receber um ou vários arquivos, uma ou várias pastas, combinação de arquivos e pastas e inclusão opcional de subpastas. A UI oferece área de arrastar e soltar; os arquivos não são copiados para o aplicativo.
 
 Formatos do MVP: JPG/JPEG, PNG e BMP.
 
 ### Rotação por regra/período
 
-Cada regra escolhe independentemente:
-
-- `Sequential`: percorre a coleção em ordem determinística;
-- `Random`: seleciona de forma pseudoaleatória por janela de tempo.
-
-Cada regra possui seu próprio `rotationIntervalMinutes`. Valor vazio/nulo significa trocar somente na entrada da regra/período (ou quando outra condição exigir reaplicação).
+Cada regra escolhe independentemente `Sequential` ou `Random` e possui seu próprio `rotationIntervalMinutes`. Valor vazio/nulo significa trocar somente na entrada da regra/período.
 
 A rotação sequencial é ancorada no início real do período. Exemplo: em `18:43→13:00`, com intervalo de 1 minuto e nove imagens, a sequência é `1→2→...→9→1...` enquanto o período permanecer vigente, inclusive após a meia-noite.
 
@@ -85,12 +71,24 @@ Fluxo:
 
 `perfil lógico → binding local → monitor físico detectado → device path atual → IDesktopWallpaper`
 
-O binding deve tentar reconhecer monitores por identidade de hardware persistente quando disponível (fabricante/modelo/serial/EDID ou equivalente) e usar device path apenas como vínculo operacional atual. Em nova máquina ou hardware ambíguo, o usuário pode associar o perfil lógico uma vez e o aplicativo memoriza essa relação localmente.
+A configuração portátil (`config.json`) armazena somente `MonitorProfile.Id` e `MonitorProfile.Name`. Dados físicos da máquina ficam separados em `%LOCALAPPDATA%\WallpaperScheduler\monitor-bindings.json`.
+
+Reconciliação local:
+
+1. tentar o último device path conhecido;
+2. se necessário, tentar identidade de hardware conservadora;
+3. usar resolução somente quando ela identifica um único monitor restante;
+4. se dois monitores forem indistinguíveis, não trocar associações silenciosamente: marcar como ambíguo;
+5. monitor ativo sem perfil recebe um novo perfil lógico local, que pode ser renomeado pelo usuário.
+
+A identidade de hardware atual é deliberadamente conservadora e deriva da família/modelo expostos pelo device path. EDID/serial pode ser adicionado posteriormente para aumentar a precisão sem alterar o modelo lógico.
 
 - `AllMonitors`: uma fonte/estado para todos os monitores ativos.
 - `PerMonitor`: fontes independentes por perfil lógico.
+- Perfis podem ser renomeados na UI sem expor IDs técnicos.
 - Monitor ausente é ignorado temporariamente.
-- Monitor que retorna deve receber novamente a configuração vigente.
+- Monitor que retorna deve recuperar seu vínculo conhecido quando a identificação for inequívoca.
+- Fonte por monitor referencia `ProfileId`, nunca o device path.
 
 ## Aplicação
 
@@ -114,7 +112,8 @@ Na etapa atual existe um loop residente de avaliação a cada 30 segundos, sufic
 - modo sequencial/aleatório e intervalo individual;
 - drag-and-drop de imagens e pastas;
 - configuração global ou por monitor lógico;
-- preview e validação de fontes;
+- renomear perfis lógicos;
+- visualizar estado conectado/ausente/ambíguo sem exigir IDs técnicos;
 - Aplicar agora;
 - importação/exportação JSON;
 - diagnóstico técnico sem exigir IDs do usuário.
@@ -133,6 +132,8 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 - Em sobreposição, períodos criados/configurados mais tarde têm precedência quando a prioridade for igual e a UI/status deve informar o conflito.
 - Desconectar um monitor não interrompe o outro.
 - Reconectar um monitor reaplica sua associação válida.
+- Dois monitores idênticos sem identificação suficiente nunca podem ter seus perfis trocados silenciosamente.
+- Fontes `PerMonitor` devem seguir o perfil lógico mesmo que o device path mude.
 - Nenhuma regra vigente significa não alterar o wallpaper.
 - Imagem/pasta removida invalida somente a fonte afetada.
 - CI deve restaurar, compilar e testar em Windows.
@@ -143,4 +144,5 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 - `v0.2`: diagnóstico e validação real de múltiplos monitores.
 - `v0.3`: schema v2, ciclo diário editável, arquivos/pastas, rotação sequencial/aleatória por período e editor WPF com drag-and-drop.
 - `v0.3.x`: máscara HH:mm, rotação ancorada no início do período, suporte contínuo a períodos atravessando meia-noite, precedência explícita em sobreposição e loop residente de avaliação.
-- Próximos blocos: binding persistente de perfis lógicos de monitor, tray/eventos, migração de configuração, acabamento/importação/exportação.
+- `v0.4` em desenvolvimento: perfis lógicos portáteis, binding físico separado por máquina, reconciliação conservadora e fontes independentes por monitor lógico.
+- Próximos blocos: tray/inicialização com Windows, eventos do sistema e hardening/importação/exportação/release.
