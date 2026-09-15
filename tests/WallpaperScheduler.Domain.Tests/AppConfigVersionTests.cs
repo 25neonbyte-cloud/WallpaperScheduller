@@ -1,4 +1,5 @@
 using WallpaperScheduler.Domain;
+using Xunit;
 
 namespace WallpaperScheduler.Domain.Tests;
 
