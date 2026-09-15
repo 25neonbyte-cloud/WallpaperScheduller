@@ -13,6 +13,7 @@ namespace WallpaperScheduler.App;
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly WallpaperOrchestrator _orchestrator;
+    private readonly VisualComfortOrchestrator _comfortOrchestrator;
     private readonly IMonitorService _monitorService;
     private readonly IMonitorProfileResolver _monitorProfileResolver;
     private readonly IMonitorBindingStore _monitorBindingStore;
@@ -22,10 +23,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private AppConfig _config = new();
     private string _status = "Carregando configuração...";
     private string _monitorDiagnostics = "Detectando monitores...";
+    private string _temperatureDiagnostics = "Aguardando diagnóstico dos monitores...";
     private bool _busy;
+    private bool _comfortEnabled;
+    private bool _themeEnabled;
+    private SystemThemeMode _manualThemeMode = SystemThemeMode.Light;
+    private bool _temperatureEnabled;
+    private TemperatureApplicationMethod _temperatureMethod = TemperatureApplicationMethod.Automatic;
+    private int _manualTemperatureKelvin = 6500;
+    private int _temperatureTransitionMinutes = 30;
+    private bool _forceSoftwareConflict;
+    private bool _routineEnabled;
 
     public MainViewModel(
         WallpaperOrchestrator orchestrator,
+        VisualComfortOrchestrator comfortOrchestrator,
         IMonitorService monitorService,
         IMonitorProfileResolver monitorProfileResolver,
         IMonitorBindingStore monitorBindingStore,
@@ -34,6 +46,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IAppLogger logger)
     {
         _orchestrator = orchestrator;
+        _comfortOrchestrator = comfortOrchestrator;
         _monitorService = monitorService;
         _monitorProfileResolver = monitorProfileResolver;
         _monitorBindingStore = monitorBindingStore;
@@ -43,6 +56,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         ApplyNowCommand = new AsyncCommand(ApplyNowAsync, () => !Busy);
         RefreshMonitorsCommand = new AsyncCommand(RefreshMonitorsAsync, () => !Busy);
+        RefreshComfortCommand = new AsyncCommand(RefreshComfortDiagnosticsAsync, () => !Busy);
         SaveCommand = new AsyncCommand(SaveAsync, () => !Busy);
         AddPeriodCommand = new RelayCommand(AddPeriod, () => !Busy);
         RemovePeriodCommand = new RelayCommand<RuleEditorItem>(RemovePeriod, item => !Busy && item is not null);
@@ -55,9 +69,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Array RotationModes { get; } = Enum.GetValues<WallpaperRotationMode>();
     public Array WallpaperStyles { get; } = Enum.GetValues<WallpaperStyle>();
     public Array WallpaperScopes { get; } = Enum.GetValues<WallpaperScope>();
+    public Array ThemeModes { get; } = Enum.GetValues<SystemThemeMode>();
+    public Array TemperatureMethods { get; } = Enum.GetValues<TemperatureApplicationMethod>();
+    public Array RoutineThemeTargets { get; } = Enum.GetValues<VisualRoutineThemeTarget>();
 
     public string Status { get => _status; private set { _status = value; OnPropertyChanged(); } }
     public string MonitorDiagnostics { get => _monitorDiagnostics; private set { _monitorDiagnostics = value; OnPropertyChanged(); } }
+    public string TemperatureDiagnostics { get => _temperatureDiagnostics; private set { _temperatureDiagnostics = value; OnPropertyChanged(); } }
+
+    public bool ComfortEnabled { get => _comfortEnabled; set { _comfortEnabled = value; OnPropertyChanged(); OnPropertyChanged(nameof(ComfortModulesEnabled)); } }
+    public bool ComfortModulesEnabled => ComfortEnabled;
+    public bool ThemeEnabled { get => _themeEnabled; set { _themeEnabled = value; OnPropertyChanged(); } }
+    public SystemThemeMode ManualThemeMode { get => _manualThemeMode; set { _manualThemeMode = value; OnPropertyChanged(); } }
+    public bool TemperatureEnabled { get => _temperatureEnabled; set { _temperatureEnabled = value; OnPropertyChanged(); } }
+    public TemperatureApplicationMethod TemperatureMethod
+    {
+        get => _temperatureMethod;
+        set
+        {
+            if (_temperatureMethod == value) return;
+            var previous = _temperatureMethod;
+            _temperatureMethod = value;
+            OnPropertyChanged();
+            foreach (var monitor in MonitorProfiles.Where(x => !x.HasTemperatureOverride && x.TemperatureMethod == previous))
+                monitor.SetInheritedTemperatureMethod(value);
+        }
+    }
+    public int ManualTemperatureKelvin { get => _manualTemperatureKelvin; set { _manualTemperatureKelvin = value; OnPropertyChanged(); } }
+    public int TemperatureTransitionMinutes { get => _temperatureTransitionMinutes; set { _temperatureTransitionMinutes = value; OnPropertyChanged(); } }
+    public bool ForceSoftwareConflict { get => _forceSoftwareConflict; set { _forceSoftwareConflict = value; OnPropertyChanged(); } }
+    public bool RoutineEnabled { get => _routineEnabled; set { _routineEnabled = value; OnPropertyChanged(); } }
 
     public bool Busy
     {
@@ -67,6 +108,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ICommand ApplyNowCommand { get; }
     public ICommand RefreshMonitorsCommand { get; }
+    public ICommand RefreshComfortCommand { get; }
     public ICommand SaveCommand { get; }
     public ICommand AddPeriodCommand { get; }
     public ICommand RemovePeriodCommand { get; }
@@ -130,6 +172,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             Busy = true;
             _config.MonitorProfiles.RemoveAll(x => x.Id == item.Id);
+            _config.VisualComfort.Temperature.PerMonitorMethods.Remove(item.Id);
             foreach (var rule in _config.Rules)
                 rule.PerMonitorProfiles.Remove(item.Id);
             foreach (var editor in Periods)
@@ -139,6 +182,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await _configStore.SaveAsync(_config);
             MonitorProfiles.Remove(item);
             MonitorDiagnostics = BuildMonitorDiagnostics();
+            await RefreshComfortDiagnosticsCoreAsync();
             Status = $"Perfil '{item.Name}' esquecido neste computador.";
             _logger.Info($"Perfil lógico de monitor removido: {item.Name}.");
         }
@@ -180,8 +224,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             _config = imported;
             await _configStore.SaveAsync(_config);
+            LoadComfortEditors();
             await ReconcileMonitorsAsync();
             LoadEditors();
+            await RefreshComfortDiagnosticsCoreAsync();
             Status = $"Configuração importada. {Periods.Count} período(s) carregado(s).";
         }
         catch (Exception ex)
@@ -214,8 +260,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             Busy = true;
             _config = await _configStore.LoadAsync();
+            LoadComfortEditors();
             await ReconcileMonitorsAsync();
             LoadEditors();
+            await RefreshComfortDiagnosticsCoreAsync();
             Status = Periods.Count == 0 ? "Nenhum período configurado. Use '+ Novo período'." : $"{Periods.Count} período(s) carregado(s).";
         }
         catch (Exception ex)
@@ -226,6 +274,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         finally { Busy = false; }
     }
 
+    private void LoadComfortEditors()
+    {
+        var comfort = _config.VisualComfort;
+        _comfortEnabled = comfort.Enabled;
+        _themeEnabled = comfort.SystemTheme.Enabled;
+        _manualThemeMode = comfort.SystemTheme.ManualMode;
+        _temperatureEnabled = comfort.Temperature.Enabled;
+        _temperatureMethod = comfort.Temperature.Method;
+        _manualTemperatureKelvin = comfort.Temperature.ManualKelvin;
+        _temperatureTransitionMinutes = comfort.Temperature.TransitionMinutes;
+        _forceSoftwareConflict = comfort.Temperature.ForceSoftwareWhenExternalTransformDetected;
+        _routineEnabled = comfort.Routine.Enabled;
+        OnPropertyChanged(nameof(ComfortEnabled));
+        OnPropertyChanged(nameof(ComfortModulesEnabled));
+        OnPropertyChanged(nameof(ThemeEnabled));
+        OnPropertyChanged(nameof(ManualThemeMode));
+        OnPropertyChanged(nameof(TemperatureEnabled));
+        OnPropertyChanged(nameof(TemperatureMethod));
+        OnPropertyChanged(nameof(ManualTemperatureKelvin));
+        OnPropertyChanged(nameof(TemperatureTransitionMinutes));
+        OnPropertyChanged(nameof(ForceSoftwareConflict));
+        OnPropertyChanged(nameof(RoutineEnabled));
+    }
+
     private IReadOnlyList<MonitorProfile> ActiveProfiles() =>
         _config.MonitorProfiles.Where(p => MonitorProfiles.Any(m => m.Id == p.Id)).ToList();
 
@@ -234,7 +306,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Periods.Clear();
         var activeProfiles = ActiveProfiles();
         foreach (var rule in _config.Rules.OrderBy(r => r.Order))
-            Periods.Add(RuleEditorItem.FromRule(rule, activeProfiles));
+        {
+            _config.VisualComfort.Routine.Bindings.TryGetValue(rule.Id, out var binding);
+            Periods.Add(RuleEditorItem.FromRule(rule, activeProfiles, binding));
+        }
     }
 
     private async Task ReconcileMonitorsAsync()
@@ -246,7 +321,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         foreach (var resolution in resolutions.Where(x => x.Monitor is not null))
         {
             var profile = _config.MonitorProfiles.First(x => x.Id == resolution.ProfileId);
-            MonitorProfiles.Add(new(profile.Id, profile.Name, resolution.Status));
+            var hasOverride = _config.VisualComfort.Temperature.PerMonitorMethods.TryGetValue(profile.Id, out var method);
+            MonitorProfiles.Add(new(
+                profile.Id,
+                profile.Name,
+                resolution.Status,
+                hasOverride ? method : TemperatureMethod,
+                hasOverride));
         }
 
         MonitorDiagnostics = BuildMonitorDiagnostics();
@@ -267,6 +348,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Busy = true;
             await ReconcileMonitorsAsync();
             SyncMonitorSourcesAcrossRules();
+            await RefreshComfortDiagnosticsCoreAsync();
             Status = "Monitores reconciliados.";
         }
         catch (Exception ex)
@@ -275,6 +357,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _logger.Error("Erro ao reconciliar monitores pela interface.", ex);
         }
         finally { Busy = false; }
+    }
+
+    private async Task RefreshComfortDiagnosticsAsync()
+    {
+        try
+        {
+            Busy = true;
+            await RefreshComfortDiagnosticsCoreAsync();
+            Status = "Capacidades de conforto visual atualizadas.";
+        }
+        catch (Exception ex)
+        {
+            TemperatureDiagnostics = $"Falha no diagnóstico: {ex.Message}";
+            _logger.Error("Erro ao diagnosticar capacidades de temperatura.", ex);
+        }
+        finally { Busy = false; }
+    }
+
+    private async Task RefreshComfortDiagnosticsCoreAsync()
+    {
+        var capabilities = await _comfortOrchestrator.GetTemperatureCapabilitiesAsync();
+        if (capabilities.Count == 0)
+        {
+            TemperatureDiagnostics = "Nenhum monitor ativo com associação física disponível.";
+            return;
+        }
+
+        var text = new StringBuilder();
+        foreach (var item in capabilities)
+        {
+            if (text.Length > 0) text.Append("   |   ");
+            text.Append(item.ProfileName).Append(": ").Append(item.Message);
+        }
+        TemperatureDiagnostics = text.ToString();
     }
 
     private void SyncMonitorSourcesAcrossRules()
@@ -302,14 +418,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task SaveChangesCoreAsync()
     {
+        if (ManualTemperatureKelvin is < 3400 or > 6500)
+            throw new InvalidOperationException("A temperatura manual deve ficar entre 3400 K e 6500 K.");
+        if (TemperatureTransitionMinutes is < 0 or > 240)
+            throw new InvalidOperationException("A transição deve ficar entre 0 e 240 minutos.");
+
         var rules = new List<WallpaperRule>();
+        var routineBindings = new Dictionary<Guid, VisualRoutineBinding>();
         for (var i = 0; i < Periods.Count; i++)
         {
             var editor = Periods[i];
             if (!TimeOnly.TryParse(editor.StartText, out var start)) throw new InvalidOperationException($"Horário inicial inválido em '{editor.Name}'. Use HH:mm.");
             if (!TimeOnly.TryParse(editor.EndText, out var end)) throw new InvalidOperationException($"Horário final inválido em '{editor.Name}'. Use HH:mm.");
             if (start == end) throw new InvalidOperationException($"'{editor.Name}' não pode iniciar e terminar no mesmo horário.");
-            rules.Add(editor.ToRule(start, end, i * 10));
+            if (editor.RoutineTemperatureKelvin is int kelvin && kelvin is < 3400 or > 6500)
+                throw new InvalidOperationException($"A temperatura da rotina em '{editor.Name}' deve ficar entre 3400 K e 6500 K.");
+
+            var rule = editor.ToRule(start, end, i * 10);
+            rules.Add(rule);
+            routineBindings[rule.Id] = new VisualRoutineBinding
+            {
+                Theme = editor.RoutineTheme,
+                TemperatureKelvin = editor.RoutineTemperatureKelvin
+            };
         }
 
         foreach (var profileEditor in MonitorProfiles)
@@ -318,7 +449,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
             profile.Name = string.IsNullOrWhiteSpace(profileEditor.Name) ? "Monitor" : profileEditor.Name.Trim();
         }
 
-        _config.Version = 2;
+        var comfort = _config.VisualComfort;
+        comfort.Enabled = ComfortEnabled;
+        comfort.SystemTheme.Enabled = ThemeEnabled;
+        comfort.SystemTheme.ManualMode = ManualThemeMode;
+        comfort.Temperature.Enabled = TemperatureEnabled;
+        comfort.Temperature.Method = TemperatureMethod;
+        comfort.Temperature.ManualKelvin = ManualTemperatureKelvin;
+        comfort.Temperature.TransitionMinutes = TemperatureTransitionMinutes;
+        comfort.Temperature.ForceSoftwareWhenExternalTransformDetected = ForceSoftwareConflict;
+        comfort.Routine.Enabled = RoutineEnabled;
+        comfort.Routine.Bindings = routineBindings;
+
+        var methods = comfort.Temperature.PerMonitorMethods;
+        foreach (var profile in MonitorProfiles)
+            methods.Remove(profile.Id);
+        foreach (var profile in MonitorProfiles.Where(x => x.HasTemperatureOverride && x.TemperatureMethod != TemperatureMethod))
+            methods[profile.Id] = profile.TemperatureMethod;
+
+        _config.Version = 3;
         _config.Rules = rules;
         await _configStore.SaveAsync(_config);
     }
@@ -329,7 +478,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             Id = Guid.NewGuid(), Name = "Novo período", StartText = "12:00", EndText = "13:00", Enabled = true,
             Priority = 100, RotationMode = WallpaperRotationMode.Sequential, Style = WallpaperStyle.Fill,
-            Scope = WallpaperScope.AllMonitors, DaysOfWeek = new HashSet<DayOfWeek>(Enum.GetValues<DayOfWeek>())
+            Scope = WallpaperScope.AllMonitors, DaysOfWeek = new HashSet<DayOfWeek>(Enum.GetValues<DayOfWeek>()),
+            RoutineTheme = VisualRoutineThemeTarget.Manual
         };
         item.SetActiveMonitorProfiles(ActiveProfiles());
         Periods.Add(item);
@@ -350,8 +500,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Busy = true;
             await SaveChangesCoreAsync();
             await ReconcileMonitorsAsync();
-            var result = await _orchestrator.ReapplyCurrentAsync();
-            Status = result.Applied ? $"Aplicado: {result.Message}" : result.Message;
+            var wallpaper = await _orchestrator.ReapplyCurrentAsync();
+            var comfort = await _comfortOrchestrator.ReapplyCurrentAsync();
+            await RefreshComfortDiagnosticsCoreAsync();
+            Status = $"Wallpaper: {wallpaper.Message}  |  Conforto: {comfort.Message}";
         }
         catch (Exception ex)
         {
@@ -366,6 +518,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         (ApplyNowCommand as AsyncCommand)?.RaiseCanExecuteChanged();
         (SaveCommand as AsyncCommand)?.RaiseCanExecuteChanged();
         (RefreshMonitorsCommand as AsyncCommand)?.RaiseCanExecuteChanged();
+        (RefreshComfortCommand as AsyncCommand)?.RaiseCanExecuteChanged();
         (AddPeriodCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (RemovePeriodCommand as RelayCommand<RuleEditorItem>)?.RaiseCanExecuteChanged();
     }
@@ -387,6 +540,8 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
     private WallpaperStyle _style = WallpaperStyle.Fill;
     private WallpaperScope _scope = WallpaperScope.AllMonitors;
     private bool _includeSubfolders;
+    private VisualRoutineThemeTarget _routineTheme = VisualRoutineThemeTarget.Manual;
+    private int? _routineTemperatureKelvin;
 
     public Guid Id { get; set; }
     public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
@@ -397,6 +552,8 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
     public int? RotationIntervalMinutes { get => _rotationIntervalMinutes; set { _rotationIntervalMinutes = value; OnPropertyChanged(); } }
     public WallpaperRotationMode RotationMode { get => _rotationMode; set { _rotationMode = value; OnPropertyChanged(); } }
     public WallpaperStyle Style { get => _style; set { _style = value; OnPropertyChanged(); } }
+    public VisualRoutineThemeTarget RoutineTheme { get => _routineTheme; set { _routineTheme = value; OnPropertyChanged(); } }
+    public int? RoutineTemperatureKelvin { get => _routineTemperatureKelvin; set { _routineTemperatureKelvin = value; OnPropertyChanged(); } }
     public WallpaperScope Scope
     {
         get => _scope;
@@ -416,14 +573,19 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
     public ObservableCollection<SourceEditorItem> Sources { get; } = [];
     public ObservableCollection<MonitorSourceEditorItem> MonitorSources { get; } = [];
 
-    public static RuleEditorItem FromRule(WallpaperRule rule, IReadOnlyCollection<MonitorProfile> activeProfiles)
+    public static RuleEditorItem FromRule(
+        WallpaperRule rule,
+        IReadOnlyCollection<MonitorProfile> activeProfiles,
+        VisualRoutineBinding? binding = null)
     {
         var item = new RuleEditorItem
         {
             Id = rule.Id, Name = rule.Name, StartText = rule.Start.ToString("HH:mm"), EndText = rule.End.ToString("HH:mm"),
             Enabled = rule.Enabled, Priority = rule.Priority, RotationIntervalMinutes = rule.RotationIntervalMinutes,
             RotationMode = rule.RotationMode, Style = rule.Style, Scope = rule.Scope,
-            DaysOfWeek = new HashSet<DayOfWeek>(rule.DaysOfWeek), IncludeSubfolders = rule.Source?.IncludeSubfolders ?? false
+            DaysOfWeek = new HashSet<DayOfWeek>(rule.DaysOfWeek), IncludeSubfolders = rule.Source?.IncludeSubfolders ?? false,
+            RoutineTheme = binding?.Theme ?? VisualRoutineThemeTarget.Manual,
+            RoutineTemperatureKelvin = binding?.TemperatureKelvin
         };
 
         if (rule.Source is not null)
@@ -503,10 +665,48 @@ public sealed class MonitorSourceEditorItem : INotifyPropertyChanged
 public sealed class MonitorProfileEditorItem : INotifyPropertyChanged
 {
     private string _name;
-    public MonitorProfileEditorItem(Guid id, string name, string status) { Id = id; _name = name; Status = status; }
+    private TemperatureApplicationMethod _temperatureMethod;
+    private bool _hasTemperatureOverride;
+
+    public MonitorProfileEditorItem(
+        Guid id,
+        string name,
+        string status,
+        TemperatureApplicationMethod temperatureMethod = TemperatureApplicationMethod.Automatic,
+        bool hasTemperatureOverride = false)
+    {
+        Id = id;
+        _name = name;
+        Status = status;
+        _temperatureMethod = temperatureMethod;
+        _hasTemperatureOverride = hasTemperatureOverride;
+    }
+
     public Guid Id { get; }
     public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
     public string Status { get; }
+    public TemperatureApplicationMethod TemperatureMethod
+    {
+        get => _temperatureMethod;
+        set
+        {
+            if (_temperatureMethod == value && _hasTemperatureOverride) return;
+            _temperatureMethod = value;
+            _hasTemperatureOverride = true;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasTemperatureOverride));
+        }
+    }
+    public bool HasTemperatureOverride => _hasTemperatureOverride;
+
+    public void SetInheritedTemperatureMethod(TemperatureApplicationMethod value)
+    {
+        _temperatureMethod = value;
+        _hasTemperatureOverride = false;
+        OnPropertyChanged(nameof(TemperatureMethod));
+        OnPropertyChanged(nameof(HasTemperatureOverride));
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }

@@ -35,6 +35,15 @@ internal static class RenderingBootstrap
         TextOptions.SetTextRenderingMode(window, TextRenderingMode.ClearType);
         TextOptions.SetTextHintingMode(window, TextHintingMode.Fixed);
         RenderOptions.SetClearTypeHint(window, ClearTypeHint.Enabled);
+
+        // A seção já existe no layout validado; apenas substituímos o conteúdo placeholder
+        // pelo painel funcional, preservando geometria, cores e navegação da janela principal.
+        if (window is MainWindow mainWindow &&
+            mainWindow.FindName("ComfortSection") is Border comfortSection &&
+            comfortSection.Child is not VisualComfortPanel)
+        {
+            comfortSection.Child = new VisualComfortPanel();
+        }
     }
 
     private static void OnBorderLoaded(object sender, RoutedEventArgs e)

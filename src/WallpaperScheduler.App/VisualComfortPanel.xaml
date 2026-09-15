@@ -1,0 +1,185 @@
+<UserControl x:Class="WallpaperScheduler.App.VisualComfortPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:WallpaperScheduler.App"
+             x:Name="ComfortRoot">
+    <StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Border Width="40" Height="40" CornerRadius="12"
+                    Background="{DynamicResource ComfortIconBrush}" Margin="0,0,12,0">
+                <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE890;" FontSize="20"
+                           Foreground="{DynamicResource ComfortAccentBrush}"/>
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="Conforto visual" Style="{StaticResource SectionTitleStyle}"/>
+                <TextBlock Text="Tema, temperatura de cor e rotina sincronizados com os períodos do dia."
+                           Style="{StaticResource SectionSubtitleStyle}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Módulo mestre" Margin="0,0,10,0" FontSize="11"
+                           FontWeight="SemiBold" Foreground="{DynamicResource ComfortAccentBrush}"/>
+                <CheckBox Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding ComfortEnabled}"/>
+            </StackPanel>
+        </Grid>
+
+        <UniformGrid Columns="3" Margin="0,14,0,0" IsEnabled="{Binding ComfortModulesEnabled}">
+            <Border CornerRadius="13" Padding="14" Margin="0,0,10,0"
+                    Background="{DynamicResource ComfortCardBrush}"
+                    BorderBrush="{DynamicResource ComfortGroupBorderBrush}" BorderThickness="1">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource ComfortIconBrush}" Margin="0,0,9,0">
+                                <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE706;" FontSize="18" Foreground="{DynamicResource ComfortAccentBrush}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Tema do sistema" FontWeight="SemiBold"/>
+                                <TextBlock Text="Claro / escuro" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding ThemeEnabled}" VerticalAlignment="Center"/>
+                    </Grid>
+                    <StackPanel Margin="0,12,0,0" IsEnabled="{Binding ThemeEnabled}">
+                        <TextBlock Text="Estado manual" Style="{StaticResource FieldLabelStyle}"/>
+                        <ComboBox ItemsSource="{Binding ThemeModes}" SelectedItem="{Binding ManualThemeMode}" Margin="0,5,0,0">
+                            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayConverter}}"/></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="A rotina pode sobrescrever este estado por período."
+                                   Margin="0,8,0,0" FontSize="10" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border CornerRadius="13" Padding="14" Margin="0,0,10,0"
+                    Background="{DynamicResource ComfortCardBrush}"
+                    BorderBrush="{DynamicResource ComfortGroupBorderBrush}" BorderThickness="1">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource ComfortIconBrush}" Margin="0,0,9,0">
+                                <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE9CA;" FontSize="18" Foreground="{DynamicResource ComfortAccentBrush}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Temperatura e tom" FontWeight="SemiBold"/>
+                                <TextBlock Text="Software + DDC/CI" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding TemperatureEnabled}" VerticalAlignment="Center"/>
+                    </Grid>
+                    <StackPanel Margin="0,12,0,0" IsEnabled="{Binding TemperatureEnabled}">
+                        <TextBlock Text="Método" Style="{StaticResource FieldLabelStyle}"/>
+                        <ComboBox ItemsSource="{Binding TemperatureMethods}" SelectedItem="{Binding TemperatureMethod}" Margin="0,5,0,0">
+                            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayConverter}}"/></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Grid Margin="0,9,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,6,0">
+                                <TextBlock Text="Temperatura (K)" Style="{StaticResource FieldLabelStyle}"/>
+                                <TextBox Text="{Binding ManualTemperatureKelvin, UpdateSourceTrigger=LostFocus}"
+                                         local:NumericTextBoxBehavior.IsEnabled="True" Padding="10,0" Height="34" Margin="0,5,0,0"
+                                         ToolTip="Faixa de teste do backend por software: 3400–6500 K."/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                <TextBlock Text="Transição (min)" Style="{StaticResource FieldLabelStyle}"/>
+                                <TextBox Text="{Binding TemperatureTransitionMinutes, UpdateSourceTrigger=LostFocus}"
+                                         local:NumericTextBoxBehavior.IsEnabled="True" Padding="10,0" Height="34" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                        <CheckBox IsChecked="{Binding ForceSoftwareConflict}" Margin="0,9,0,0"
+                                  Content="Forçar mesmo com outro filtro detectado" FontSize="10"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border CornerRadius="13" Padding="14"
+                    Background="{DynamicResource ComfortCardBrush}"
+                    BorderBrush="{DynamicResource ComfortGroupBorderBrush}" BorderThickness="1">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource ComfortIconBrush}" Margin="0,0,9,0">
+                                <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE8F1;" FontSize="18" Foreground="{DynamicResource ComfortAccentBrush}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Rotina visual" FontWeight="SemiBold"/>
+                                <TextBlock Text="Usa os períodos existentes" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding RoutineEnabled}" VerticalAlignment="Center"/>
+                    </Grid>
+                    <StackPanel Margin="0,12,0,0" IsEnabled="{Binding RoutineEnabled}">
+                        <TextBlock Text="Cada período pode definir tema e temperatura. Não existe um segundo scheduler."
+                                   FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="Ao retornar de suspensão ou alterar o relógio, o estado correto do momento é aplicado diretamente."
+                                   Margin="0,8,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Expander Header="Rotina por período" Margin="0,12,0,0" IsEnabled="{Binding ComfortModulesEnabled}">
+            <ItemsControl ItemsSource="{Binding Periods}" Margin="0,8,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.3*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="SemiBold" FontSize="11"/>
+                            <ComboBox Grid.Column="1" Margin="8,0"
+                                      ItemsSource="{Binding DataContext.RoutineThemeTargets, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                      SelectedItem="{Binding RoutineTheme}"
+                                      IsEnabled="{Binding DataContext.RoutineEnabled, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayConverter}}"/></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBox Grid.Column="2" Margin="8,0,0,0" Height="32" Padding="10,0"
+                                     Text="{Binding RoutineTemperatureKelvin, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"
+                                     local:NumericTextBoxBehavior.IsEnabled="True"
+                                     IsEnabled="{Binding DataContext.RoutineEnabled, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                     ToolTip="Temperatura em K (3400–6500). Deixe vazio para usar a temperatura manual."/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Expander>
+
+        <Expander Header="Método por monitor e diagnóstico" Margin="0,8,0,0" IsEnabled="{Binding ComfortModulesEnabled}">
+            <StackPanel Margin="0,8,0,0">
+                <ItemsControl ItemsSource="{Binding MonitorProfiles}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="230"/></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11"/>
+                                    <TextBlock Text="{Binding Status}" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding DataContext.TemperatureMethods, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                          SelectedItem="{Binding TemperatureMethod}">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayConverter}}"/></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Margin="0,8,0,0" Padding="10" CornerRadius="8" Background="#FFF8E6" BorderBrush="#F2D59A" BorderThickness="1">
+                    <TextBlock Text="{Binding TemperatureDiagnostics}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </Border>
+                <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshComfortCommand}"
+                        Content="Atualizar capacidades" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+            </StackPanel>
+        </Expander>
+    </StackPanel>
+</UserControl>

@@ -18,6 +18,12 @@ public sealed class EnumDisplayConverter : IValueConverter
             "Tile" => "Lado a lado",
             "AllMonitors" => "Todos os monitores",
             "PerMonitor" => "Por monitor",
+            "Light" => "Claro",
+            "Dark" => "Escuro",
+            "Automatic" => "Automático (Software)",
+            "Software" => "Software",
+            "DdcCi" => "Hardware (DDC/CI)",
+            "Manual" => "Usar estado manual",
             null => string.Empty,
             var text => text
         };
