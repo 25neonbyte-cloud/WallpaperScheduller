@@ -17,7 +17,13 @@ public sealed class WallpaperOrchestrator(
 
     private WallpaperState? _lastApplied;
 
-    public async Task<ApplyResult> ApplyCurrentAsync(CancellationToken cancellationToken = default)
+    public Task<ApplyResult> ApplyCurrentAsync(CancellationToken cancellationToken = default) =>
+        ApplyCurrentCoreAsync(forceReapply: false, cancellationToken);
+
+    public Task<ApplyResult> ReapplyCurrentAsync(CancellationToken cancellationToken = default) =>
+        ApplyCurrentCoreAsync(forceReapply: true, cancellationToken);
+
+    private async Task<ApplyResult> ApplyCurrentCoreAsync(bool forceReapply, CancellationToken cancellationToken)
     {
         var config = await configStore.LoadAsync(cancellationToken);
         var evaluation = ruleEngine.Evaluate(config.Rules, clock.Now);
@@ -32,7 +38,7 @@ public sealed class WallpaperOrchestrator(
             return new(false, $"Regra '{rule.Name}' não possui imagem aplicável aos monitores ativos.");
 
         var state = new WallpaperState(rule.Id, rule.Style, assignments);
-        if (EqualsState(_lastApplied, state))
+        if (!forceReapply && EqualsState(_lastApplied, state))
             return new(false, evaluation.Reason + " Estado desejado já está aplicado.", state);
 
         wallpaperApplier.Apply(state);

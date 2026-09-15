@@ -27,6 +27,17 @@ public sealed record StartupRegistrationStatus(
     string Message,
     string? RegistrationPath = null);
 
+public enum SystemEventKind
+{
+    DisplaySettingsChanged,
+    Resume,
+    SessionUnlocked,
+    SessionLogon,
+    TimeChanged
+}
+
+public sealed record SystemEventNotification(SystemEventKind Kind, DateTimeOffset OccurredAt);
+
 public interface IConfigStore
 {
     Task<AppConfig> LoadAsync(CancellationToken cancellationToken = default);
@@ -36,7 +47,7 @@ public interface IConfigStore
 public interface IMonitorBindingStore
 {
     Task<IReadOnlyList<MonitorBinding>> LoadAsync(CancellationToken cancellationToken = default);
-    Task SaveAsync(IReadOnlyList<MonitorBinding> bindings, CancellationToken cancellationToken = default);
+    Task SaveAsync(IReadOnlyList<MonitorBinding>> bindings, CancellationToken cancellationToken = default);
     Task RemoveAsync(Guid profileId, CancellationToken cancellationToken = default);
 }
 
@@ -60,6 +71,12 @@ public interface IStartupService
     bool IsEnabled { get; }
     StartupRegistrationStatus GetStatus();
     void SetEnabled(bool enabled);
+}
+
+public interface ISystemEvents : IDisposable
+{
+    event EventHandler<SystemEventNotification>? EventOccurred;
+    void Start();
 }
 
 public interface IClock

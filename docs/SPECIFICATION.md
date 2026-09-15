@@ -1,6 +1,6 @@
 # Wallpaper Scheduler — Especificação Mestre
 
-**Versão:** 2.2  
+**Versão:** 2.3  
 **Plataforma:** Windows 11  
 **Stack:** C# / .NET 10 LTS / WPF  
 **Arquitetura:** MVVM + DI
@@ -16,11 +16,12 @@ Trocar wallpapers automaticamente conforme regras configuráveis de dias, horár
 - Operação local e como usuário comum.
 - Mesma configuração + data/hora + monitores deve produzir o mesmo resultado.
 - Regra inválida não derruba o motor.
-- Wallpaper só é reaplicado quando o estado desejado muda.
+- Wallpaper só é reaplicado quando o estado desejado muda, salvo reaplicação explícita (`Aplicar agora`) ou recuperação orientada a evento do sistema.
 - Monitor ausente não invalida os demais.
 - Configuração utiliza JSON local versionado e backup.
 - Identificadores técnicos do Windows não são expostos como configuração obrigatória ao usuário.
 - O ciclo diário fornecido pelo aplicativo é somente um padrão inicial; sua estrutura é 100% personalizável.
+- Inicialização com o Windows vem habilitada por padrão em uma configuração nova; se o usuário desativar explicitamente, essa escolha deve persistir.
 
 ## Ciclo diário padrão
 
@@ -98,11 +99,13 @@ Fluxo:
 
 `evento/horário → detectar/reconciliar monitores → avaliar regras → resolver fonte/rotação → construir desired state → comparar → aplicar diferenças → registrar resultado`
 
+Eventos de recuperação (`display`, retorno de suspensão, desbloqueio/logon de sessão e alteração do relógio) podem forçar a reaplicação do estado desejado mesmo quando ele é igual ao último estado conhecido, pois o Windows pode ter perdido ou alterado externamente o wallpaper durante a transição.
+
 ## Scheduler alvo do MVP
 
-Processo residente em System Tray, inicialização opcional com Windows, eventos de display/sessão/energia, próxima transição calculada, próxima rotação calculada e heartbeat de segurança.
+Processo residente em System Tray, inicialização com Windows habilitada por padrão e desativável pelo usuário, eventos de display/sessão/energia, próxima transição calculada, próxima rotação calculada e heartbeat de segurança.
 
-Na etapa atual existe um loop residente de avaliação a cada 30 segundos, suficiente para validar trocas automáticas por minuto. Ele será substituído/refinado pelo scheduler orientado a eventos e próxima transição antes do fechamento do MVP.
+Na etapa atual existe um loop residente de avaliação a cada 30 segundos combinado com eventos do Windows para mudança de display, retorno de suspensão, desbloqueio/logon e alteração de data/hora. Os eventos são agrupados por debounce curto antes da reavaliação para evitar tempestades de notificações. O cálculo exato da próxima transição/rotação será refinado no hardening do scheduler.
 
 ## UI alvo do MVP
 
@@ -134,6 +137,7 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 - Reconectar um monitor reaplica sua associação válida.
 - Dois monitores idênticos sem identificação suficiente nunca podem ter seus perfis trocados silenciosamente.
 - Fontes `PerMonitor` devem seguir o perfil lógico mesmo que o device path mude.
+- Retorno de suspensão, desbloqueio/logon, alteração de display e mudança do relógio devem provocar reavaliação automática sem exigir abertura da janela.
 - Nenhuma regra vigente significa não alterar o wallpaper.
 - Imagem/pasta removida invalida somente a fonte afetada.
 - CI deve restaurar, compilar e testar em Windows.
@@ -144,5 +148,7 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 - `v0.2`: diagnóstico e validação real de múltiplos monitores.
 - `v0.3`: schema v2, ciclo diário editável, arquivos/pastas, rotação sequencial/aleatória por período e editor WPF com drag-and-drop.
 - `v0.3.x`: máscara HH:mm, rotação ancorada no início do período, suporte contínuo a períodos atravessando meia-noite, precedência explícita em sobreposição e loop residente de avaliação.
-- `v0.4` em desenvolvimento: perfis lógicos portáteis, binding físico separado por máquina, reconciliação conservadora e fontes independentes por monitor lógico.
-- Próximos blocos: tray/inicialização com Windows, eventos do sistema e hardening/importação/exportação/release.
+- `v0.4`: perfis lógicos portáteis, binding físico separado por máquina, reconciliação conservadora e fontes independentes por monitor lógico; validado em máquina real.
+- `v0.5.x`: tray, execução residente e inicialização persistente com o Windows; mecanismo Startup validado em máquina real. Inicialização passa a ser padrão para novas configurações.
+- `v0.6` em desenvolvimento: eventos do sistema para display, resume, unlock/logon e alteração do relógio, com reavaliação/reaplicação coordenada.
+- Próximo bloco: hardening, importação/exportação JSON e preparação de release.

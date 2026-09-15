@@ -39,17 +39,22 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
             _ = EvaluateAsync();
     }
 
-    public Task ApplyNowAsync() => EvaluateAsync(force: true);
+    public Task ApplyNowAsync() => EvaluateAsync(ignorePause: true, forceReapply: true);
+
+    public Task HandleSystemEventAsync() => EvaluateAsync(ignorePause: false, forceReapply: true);
 
     private async void OnTick(object? sender, EventArgs e) => await EvaluateAsync();
 
-    private async Task EvaluateAsync(bool force = false)
+    private async Task EvaluateAsync(bool ignorePause = false, bool forceReapply = false)
     {
-        if (_running || (IsPaused && !force)) return;
+        if (_running || (IsPaused && !ignorePause)) return;
         try
         {
             _running = true;
-            await _orchestrator.ApplyCurrentAsync();
+            if (forceReapply)
+                await _orchestrator.ReapplyCurrentAsync();
+            else
+                await _orchestrator.ApplyCurrentAsync();
         }
         catch
         {

@@ -75,6 +75,52 @@ public sealed class WallpaperOrchestratorTests
         }
     }
 
+    [Fact]
+    public async Task ReapplyCurrent_forces_wallpaper_even_when_desired_state_is_unchanged()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WallpaperSchedulerTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var image = Path.Combine(root, "wallpaper.jpg");
+        await File.WriteAllBytesAsync(image, [0]);
+
+        try
+        {
+            var rule = new WallpaperRule
+            {
+                Name = "Current",
+                Enabled = true,
+                DaysOfWeek = [DayOfWeek.Monday],
+                Start = new TimeOnly(12, 0),
+                End = new TimeOnly(13, 0),
+                Scope = WallpaperScope.AllMonitors,
+                Source = Source(image)
+            };
+            var config = new AppConfig { Rules = [rule] };
+            var monitors = new[] { new MonitorInfo("device", "Monitor", 1920, 1080) };
+            var applier = new CapturingApplier();
+            var orchestrator = new WallpaperOrchestrator(
+                new FakeConfigStore(config),
+                new RuleEngine(),
+                new FakeMonitorService(monitors),
+                new FakeResolver([]),
+                applier,
+                new FixedClock(new DateTimeOffset(2026, 9, 14, 12, 30, 0, TimeSpan.Zero)));
+
+            var first = await orchestrator.ApplyCurrentAsync();
+            var unchanged = await orchestrator.ApplyCurrentAsync();
+            var forced = await orchestrator.ReapplyCurrentAsync();
+
+            Assert.True(first.Applied);
+            Assert.False(unchanged.Applied);
+            Assert.True(forced.Applied);
+            Assert.Equal(2, applier.ApplyCount);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static WallpaperSource Source(string path) => new()
     {
         Items = [new WallpaperSourceItem { Kind = WallpaperSourceKind.File, Path = path }]
@@ -100,7 +146,13 @@ public sealed class WallpaperOrchestratorTests
     private sealed class CapturingApplier : IWallpaperApplier
     {
         public WallpaperState? State { get; private set; }
-        public void Apply(WallpaperState state) => State = state;
+        public int ApplyCount { get; private set; }
+
+        public void Apply(WallpaperState state)
+        {
+            State = state;
+            ApplyCount++;
+        }
     }
 
     private sealed class FixedClock(DateTimeOffset now) : IClock

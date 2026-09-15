@@ -27,11 +27,13 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IMonitorBindingStore>(_ => new JsonMonitorBindingStore(bindingsPath));
         services.AddSingleton<IMonitorProfileResolver, MonitorProfileResolver>();
         services.AddSingleton<IStartupService, WindowsStartupService>();
+        services.AddSingleton<ISystemEvents, WindowsSystemEvents>();
         services.AddSingleton<WindowsWallpaperService>();
         services.AddSingleton<IMonitorService>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<IWallpaperApplier>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<WallpaperOrchestrator>();
         services.AddSingleton<WallpaperSchedulerHostedLoop>();
+        services.AddSingleton<SystemEventCoordinator>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
         services.AddSingleton<TrayIconService>();
@@ -43,6 +45,7 @@ public partial class App : System.Windows.Application
 
         var loop = _services.GetRequiredService<WallpaperSchedulerHostedLoop>();
         loop.Start();
+        _services.GetRequiredService<SystemEventCoordinator>().Start();
 
         var startHidden = e.Args.Any(x => string.Equals(x, "--startup", StringComparison.OrdinalIgnoreCase));
         _services.GetRequiredService<TrayIconService>().Start(startHidden);
