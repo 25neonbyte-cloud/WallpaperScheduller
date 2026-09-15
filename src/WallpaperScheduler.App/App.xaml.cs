@@ -15,11 +15,15 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
         var services = new ServiceCollection();
-        var configPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WallpaperScheduler", "config.json");
+        var basePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WallpaperScheduler");
+        var configPath = Path.Combine(basePath, "config.json");
+        var bindingsPath = Path.Combine(basePath, "monitor-bindings.json");
 
         services.AddSingleton<IRuleEngine, RuleEngine>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IConfigStore>(_ => new JsonConfigStore(configPath));
+        services.AddSingleton<IMonitorBindingStore>(_ => new JsonMonitorBindingStore(bindingsPath));
+        services.AddSingleton<IMonitorProfileResolver, MonitorProfileResolver>();
         services.AddSingleton<WindowsWallpaperService>();
         services.AddSingleton<IMonitorService>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<IWallpaperApplier>(sp => sp.GetRequiredService<WindowsWallpaperService>());
