@@ -16,12 +16,13 @@ Trocar wallpapers automaticamente conforme regras configuráveis de dias, horár
 - Operação local e como usuário comum.
 - Mesma configuração + data/hora + monitores deve produzir o mesmo resultado.
 - Regra inválida não derruba o motor.
-- Wallpaper só é reaplicado quando o estado desejado muda, salvo reaplicação explícita (`Aplicar agora`) ou recuperação orientada a evento do sistema.
+- Wallpaper só é reaplicado quando o estado desejado muda, salvo reaplicação explícita ou evento de sistema que possa ter invalidado o estado externo.
 - Monitor ausente não invalida os demais.
-- Configuração utiliza JSON local versionado e backup.
+- Configuração utiliza JSON local versionado, escrita atômica, backup e recuperação.
 - Identificadores técnicos do Windows não são expostos como configuração obrigatória ao usuário.
 - O ciclo diário fornecido pelo aplicativo é somente um padrão inicial; sua estrutura é 100% personalizável.
-- Inicialização com o Windows vem habilitada por padrão em uma configuração nova; se o usuário desativar explicitamente, essa escolha deve persistir.
+- Apenas uma instância do aplicativo pode executar por sessão de usuário.
+- Inicialização com o Windows é habilitada por padrão em configuração nova, mas pode ser desativada explicitamente pelo usuário.
 
 ## Ciclo diário padrão
 
@@ -56,7 +57,7 @@ Sobreposições não são silenciosas: a avaliação deve informar quando existe
 
 Uma regra pode receber um ou vários arquivos, uma ou várias pastas, combinação de arquivos e pastas e inclusão opcional de subpastas. A UI oferece área de arrastar e soltar; os arquivos não são copiados para o aplicativo.
 
-Formatos do MVP: JPG/JPEG, PNG e BMP.
+Formatos do MVP: JPG/JPEG, PNG e BMP. Arquivos individuais em outros formatos são rejeitados pela UI e ignorados pelo motor caso apareçam em configuração externa.
 
 ### Rotação por regra/período
 
@@ -99,15 +100,35 @@ Fluxo:
 
 `evento/horário → detectar/reconciliar monitores → avaliar regras → resolver fonte/rotação → construir desired state → comparar → aplicar diferenças → registrar resultado`
 
-Eventos de recuperação (`display`, retorno de suspensão, desbloqueio/logon de sessão e alteração do relógio) podem forçar a reaplicação do estado desejado mesmo quando ele é igual ao último estado conhecido, pois o Windows pode ter perdido ou alterado externamente o wallpaper durante a transição.
+`Aplicar agora` força a reaplicação do estado vigente. Eventos de sistema também podem forçar reaplicação, porque suspensão, desbloqueio ou mudanças de display podem alterar o estado externo sem alterar o estado lógico calculado.
 
-## Scheduler alvo do MVP
+## Scheduler do MVP
 
-Processo residente em System Tray, inicialização com Windows habilitada por padrão e desativável pelo usuário, eventos de display/sessão/energia, próxima transição calculada, próxima rotação calculada e heartbeat de segurança.
+O processo é residente em System Tray. Em configuração nova, **Iniciar com o Windows** vem habilitado por padrão; o usuário pode desativar essa opção. O registro usa o Startup do usuário, sem privilégios administrativos, e é reconciliado no início da aplicação.
 
-Na etapa atual existe um loop residente de avaliação a cada 30 segundos combinado com eventos do Windows para mudança de display, retorno de suspensão, desbloqueio/logon e alteração de data/hora. Os eventos são agrupados por debounce curto antes da reavaliação para evitar tempestades de notificações. O cálculo exato da próxima transição/rotação será refinado no hardening do scheduler.
+O scheduler reage a:
 
-## UI alvo do MVP
+- alteração de display/topologia;
+- retorno da suspensão;
+- desbloqueio de sessão;
+- logon de sessão;
+- alteração do relógio do sistema.
+
+Eventos são consolidados antes da avaliação para evitar reaplicações em rajada. Um heartbeat de 30 segundos permanece como segurança para transições/rotações e para recuperação de eventos eventualmente perdidos. Quando a automação é pausada, o heartbeat é interrompido até a retomada; `Aplicar agora` continua disponível como ação explícita.
+
+Ao iniciar automaticamente com `--startup`, a janela principal não é exibida e o aplicativo permanece no tray. Uma segunda execução não cria outro scheduler: ela sinaliza a instância existente para abrir a janela.
+
+## Persistência, importação e diagnóstico
+
+- `config.json` é salvo de forma atômica e mantém `config.json.bak` como último backup.
+- JSON principal inválido tenta recuperação pelo backup; o arquivo corrompido é preservado para diagnóstico antes da recuperação.
+- Se principal e backup estiverem inválidos, o aplicativo cria configuração padrão em vez de derrubar o scheduler.
+- Importação/exportação JSON é acessível pela interface.
+- A importação substitui regras/fontes e preserva a preferência local de inicialização do Windows.
+- Logs são exclusivamente locais em `%LOCALAPPDATA%\WallpaperScheduler\logs`, com rotação por tamanho.
+- O aplicativo não envia logs, configuração, caminhos ou telemetria para serviços externos.
+
+## UI do MVP
 
 - lista/editor de períodos/regras;
 - criar, editar, excluir e reordenar;
@@ -119,7 +140,7 @@ Na etapa atual existe um loop residente de avaliação a cada 30 segundos combin
 - visualizar estado conectado/ausente/ambíguo sem exigir IDs técnicos;
 - Aplicar agora;
 - importação/exportação JSON;
-- diagnóstico técnico sem exigir IDs do usuário.
+- acesso à pasta de diagnóstico/logs.
 
 ## Fora do MVP
 
@@ -137,10 +158,12 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 - Reconectar um monitor reaplica sua associação válida.
 - Dois monitores idênticos sem identificação suficiente nunca podem ter seus perfis trocados silenciosamente.
 - Fontes `PerMonitor` devem seguir o perfil lógico mesmo que o device path mude.
-- Retorno de suspensão, desbloqueio/logon, alteração de display e mudança do relógio devem provocar reavaliação automática sem exigir abertura da janela.
 - Nenhuma regra vigente significa não alterar o wallpaper.
 - Imagem/pasta removida invalida somente a fonte afetada.
-- CI deve restaurar, compilar e testar em Windows.
+- Reiniciar o Windows não exige reconfigurar a programação; a inicialização automática preserva o scheduler salvo.
+- Configuração corrompida não deve derrubar o aplicativo quando existir backup válido.
+- Uma segunda execução não deve criar scheduler concorrente.
+- CI deve restaurar, compilar, testar e publicar em Windows.
 
 ## Estado da implementação
 
@@ -148,7 +171,9 @@ Lock screen, Task Scheduler híbrido, download automático, cloud, conta, teleme
 - `v0.2`: diagnóstico e validação real de múltiplos monitores.
 - `v0.3`: schema v2, ciclo diário editável, arquivos/pastas, rotação sequencial/aleatória por período e editor WPF com drag-and-drop.
 - `v0.3.x`: máscara HH:mm, rotação ancorada no início do período, suporte contínuo a períodos atravessando meia-noite, precedência explícita em sobreposição e loop residente de avaliação.
-- `v0.4`: perfis lógicos portáteis, binding físico separado por máquina, reconciliação conservadora e fontes independentes por monitor lógico; validado em máquina real.
-- `v0.5.x`: tray, execução residente e inicialização persistente com o Windows; mecanismo Startup validado em máquina real. Inicialização passa a ser padrão para novas configurações.
-- `v0.6` em desenvolvimento: eventos do sistema para display, resume, unlock/logon e alteração do relógio, com reavaliação/reaplicação coordenada.
-- Próximo bloco: hardening, importação/exportação JSON e preparação de release.
+- `v0.4.x`: perfis lógicos portáteis, binding físico separado por máquina, reconciliação conservadora e fontes independentes por monitor lógico.
+- `v0.5.x`: System Tray, pausar/retomar, Aplicar agora, persistência de configuração e inicialização automática com Windows pelo Startup do usuário.
+- `v0.6`: eventos de display, energia, sessão e relógio com debounce e reaplicação segura.
+- `v0.7`: hardening/fechamento do MVP — recuperação de configuração, logs locais, importação/exportação, validação de formatos, instância única, refinamento de consumo e empacotamento de release.
+
+Após a validação integrada da `v0.6 + v0.7`, o próximo passo é somente o fechamento de release do MVP e eventual merge aprovado de `develop` para `main`.

@@ -22,8 +22,11 @@
                 <TextBlock Margin="0,6,0,0" Text="Ciclo diário personalizável · arquivos, pastas, rotação e perfis lógicos de monitor" Opacity="0.65"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Width="120" Height="36" Margin="0,0,10,0" Content="Salvar" Command="{Binding SaveCommand}"/>
-                <Button Width="140" Height="36" Content="Aplicar agora" Command="{Binding ApplyNowCommand}"/>
+                <Button Width="82" Height="36" Margin="0,0,8,0" Content="Importar" Click="ImportConfig_Click"/>
+                <Button Width="82" Height="36" Margin="0,0,8,0" Content="Exportar" Click="ExportConfig_Click"/>
+                <Button Width="72" Height="36" Margin="0,0,8,0" Content="Logs" Click="OpenDiagnostics_Click"/>
+                <Button Width="100" Height="36" Margin="0,0,8,0" Content="Salvar" Command="{Binding SaveCommand}"/>
+                <Button Width="130" Height="36" Content="Aplicar agora" Command="{Binding ApplyNowCommand}"/>
             </StackPanel>
         </Grid>
 
@@ -141,7 +144,7 @@
                                                 BorderThickness="2" BorderBrush="#667A7F8A" CornerRadius="10" Background="#FAFBFC">
                                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="Arraste e solte wallpapers ou pastas aqui" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                                                <TextBlock Margin="0,4,0,0" Text="Aplicada igualmente a todos os monitores ativos." Opacity="0.58" HorizontalAlignment="Center"/>
+                                                <TextBlock Margin="0,4,0,0" Text="JPG/JPEG, PNG e BMP · aplicada igualmente a todos os monitores ativos." Opacity="0.58" HorizontalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                         <CheckBox Margin="0,7,0,0" IsChecked="{Binding IncludeSubfolders}" Content="Incluir subpastas"/>
@@ -183,7 +186,7 @@
                                                             </Grid>
                                                             <Border Margin="0,8,0,0" Padding="12" MinHeight="58" AllowDrop="True" Drop="MonitorWallpaperDropZone_Drop" Tag="{Binding}"
                                                                     BorderThickness="1" BorderBrush="#667A7F8A" CornerRadius="7" Background="White">
-                                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Arraste arquivos ou pastas para este monitor" Opacity="0.7"/>
+                                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Arraste arquivos JPG/JPEG, PNG, BMP ou pastas" Opacity="0.7"/>
                                                             </Border>
                                                             <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Sources}">
                                                                 <ItemsControl.ItemTemplate>

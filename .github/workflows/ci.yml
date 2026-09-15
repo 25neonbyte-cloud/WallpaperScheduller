@@ -28,6 +28,14 @@ jobs:
       - name: Publish Windows x64
         run: dotnet publish src/WallpaperScheduler.App/WallpaperScheduler.App.csproj -c Release -r win-x64 -o artifacts/WallpaperScheduler
 
+      - name: Verify package
+        shell: pwsh
+        run: |
+          $exe = "artifacts/WallpaperScheduler/WallpaperScheduler.exe"
+          if (!(Test-Path $exe)) { throw "WallpaperScheduler.exe não foi publicado." }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "WallpaperScheduler.exe SHA256 $hash" | Set-Content "artifacts/WallpaperScheduler/SHA256.txt"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

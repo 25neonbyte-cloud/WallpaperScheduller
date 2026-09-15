@@ -1,8 +1,9 @@
 using System.Windows;
-using System.Windows.Controls;
 using WpfButton = System.Windows.Controls.Button;
 using WpfDragEventArgs = System.Windows.DragEventArgs;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
+using WpfOpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using WpfSaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
 namespace WallpaperScheduler.App;
 
@@ -12,6 +13,53 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
+    }
+
+    private async void ImportConfig_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel viewModel) return;
+
+        var dialog = new WpfOpenFileDialog
+        {
+            Title = "Importar configuração do Wallpaper Scheduler",
+            Filter = "Configuração JSON (*.json)|*.json|Todos os arquivos (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        var confirmation = System.Windows.MessageBox.Show(
+            this,
+            "A importação substituirá os períodos e fontes atualmente salvos. A preferência local de inicialização com o Windows será preservada. Continuar?",
+            "Importar configuração",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        await viewModel.ImportConfigAsync(dialog.FileName);
+    }
+
+    private async void ExportConfig_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel viewModel) return;
+
+        var dialog = new WpfSaveFileDialog
+        {
+            Title = "Exportar configuração do Wallpaper Scheduler",
+            Filter = "Configuração JSON (*.json)|*.json",
+            DefaultExt = ".json",
+            AddExtension = true,
+            FileName = $"WallpaperScheduler-config-{DateTime.Now:yyyyMMdd}.json"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        await viewModel.ExportConfigAsync(dialog.FileName);
+    }
+
+    private void OpenDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+            viewModel.OpenDiagnosticsFolder();
     }
 
     private void WallpaperDropZone_Drop(object sender, WpfDragEventArgs e)

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -16,6 +17,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IMonitorProfileResolver _monitorProfileResolver;
     private readonly IMonitorBindingStore _monitorBindingStore;
     private readonly IConfigStore _configStore;
+    private readonly IConfigTransferService _configTransferService;
+    private readonly IAppLogger _logger;
     private AppConfig _config = new();
     private string _status = "Carregando configuração...";
     private string _monitorDiagnostics = "Detectando monitores...";
@@ -26,13 +29,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IMonitorService monitorService,
         IMonitorProfileResolver monitorProfileResolver,
         IMonitorBindingStore monitorBindingStore,
-        IConfigStore configStore)
+        IConfigStore configStore,
+        IConfigTransferService configTransferService,
+        IAppLogger logger)
     {
         _orchestrator = orchestrator;
         _monitorService = monitorService;
         _monitorProfileResolver = monitorProfileResolver;
         _monitorBindingStore = monitorBindingStore;
         _configStore = configStore;
+        _configTransferService = configTransferService;
+        _logger = logger;
 
         ApplyNowCommand = new AsyncCommand(ApplyNowAsync, () => !Busy);
         RefreshMonitorsCommand = new AsyncCommand(RefreshMonitorsAsync, () => !Busy);
@@ -81,14 +88,36 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void AddSources(ObservableCollection<SourceEditorItem> target, IEnumerable<string> paths, string label)
     {
         var added = 0;
+        var rejected = 0;
+
         foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var kind = Directory.Exists(path) ? WallpaperSourceKind.Folder : File.Exists(path) ? WallpaperSourceKind.File : (WallpaperSourceKind?)null;
+            WallpaperSourceKind? kind = null;
+            if (Directory.Exists(path))
+                kind = WallpaperSourceKind.Folder;
+            else if (File.Exists(path))
+            {
+                if (!WallpaperFileSupport.IsSupportedExtension(path))
+                {
+                    rejected++;
+                    continue;
+                }
+                kind = WallpaperSourceKind.File;
+            }
+
             if (kind is null || target.Any(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
             target.Add(new SourceEditorItem(kind.Value, path));
             added++;
         }
-        Status = added > 0 ? $"{added} fonte(s) adicionada(s) a '{label}'. Salve para persistir." : "Nenhuma fonte válida foi adicionada.";
+
+        if (added > 0)
+            Status = rejected > 0
+                ? $"{added} fonte(s) adicionada(s) a '{label}'; {rejected} arquivo(s) ignorado(s). Formatos: {WallpaperFileSupport.DisplayNames}."
+                : $"{added} fonte(s) adicionada(s) a '{label}'. Salve para persistir.";
+        else if (rejected > 0)
+            Status = $"Arquivos ignorados: formatos suportados são {WallpaperFileSupport.DisplayNames}.";
+        else
+            Status = "Nenhuma fonte válida foi adicionada.";
     }
 
     public void RemoveSource(RuleEditorItem item, SourceEditorItem source) { item.Sources.Remove(source); Status = "Fonte removida. Salve para persistir."; }
@@ -111,9 +140,72 @@ public sealed class MainViewModel : INotifyPropertyChanged
             MonitorProfiles.Remove(item);
             MonitorDiagnostics = BuildMonitorDiagnostics();
             Status = $"Perfil '{item.Name}' esquecido neste computador.";
+            _logger.Info($"Perfil lógico de monitor removido: {item.Name}.");
         }
-        catch (Exception ex) { Status = $"Erro ao esquecer monitor: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            Status = $"Erro ao esquecer monitor: {ex.Message}";
+            _logger.Error("Erro ao esquecer perfil de monitor.", ex);
+        }
         finally { Busy = false; }
+    }
+
+    public async Task ExportConfigAsync(string filePath)
+    {
+        if (Busy) return;
+        try
+        {
+            Busy = true;
+            await SaveChangesCoreAsync();
+            await _configTransferService.ExportAsync(_config, filePath);
+            Status = $"Configuração exportada para '{filePath}'.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Erro ao exportar: {ex.Message}";
+            _logger.Error("Erro ao exportar configuração.", ex);
+        }
+        finally { Busy = false; }
+    }
+
+    public async Task ImportConfigAsync(string filePath)
+    {
+        if (Busy) return;
+        try
+        {
+            Busy = true;
+            var keepStartupPreference = _config.Scheduler.StartWithWindows;
+            var imported = await _configTransferService.ImportAsync(filePath);
+            imported.Scheduler.StartWithWindows = keepStartupPreference;
+
+            _config = imported;
+            await _configStore.SaveAsync(_config);
+            await ReconcileMonitorsAsync();
+            LoadEditors();
+            Status = $"Configuração importada. {Periods.Count} período(s) carregado(s).";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Erro ao importar: {ex.Message}";
+            _logger.Error("Erro ao importar configuração.", ex);
+        }
+        finally { Busy = false; }
+    }
+
+    public void OpenDiagnosticsFolder()
+    {
+        try
+        {
+            var folder = Path.GetDirectoryName(_logger.LogFilePath) ?? AppContext.BaseDirectory;
+            Directory.CreateDirectory(folder);
+            Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            Status = $"Pasta de diagnóstico: {folder}";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Erro ao abrir diagnósticos: {ex.Message}";
+            _logger.Error("Erro ao abrir pasta de diagnósticos.", ex);
+        }
     }
 
     private async Task LoadAsync()
@@ -126,7 +218,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             LoadEditors();
             Status = Periods.Count == 0 ? "Nenhum período configurado. Use '+ Novo período'." : $"{Periods.Count} período(s) carregado(s).";
         }
-        catch (Exception ex) { Status = $"Erro ao carregar configuração: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            Status = $"Erro ao carregar configuração: {ex.Message}";
+            _logger.Error("Erro ao carregar configuração na interface.", ex);
+        }
         finally { Busy = false; }
     }
 
@@ -173,7 +269,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SyncMonitorSourcesAcrossRules();
             Status = "Monitores reconciliados.";
         }
-        catch (Exception ex) { MonitorDiagnostics = $"Erro ao detectar monitores: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            MonitorDiagnostics = $"Erro ao detectar monitores: {ex.Message}";
+            _logger.Error("Erro ao reconciliar monitores pela interface.", ex);
+        }
         finally { Busy = false; }
     }
 
@@ -189,29 +289,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             Busy = true;
-            var rules = new List<WallpaperRule>();
-            for (var i = 0; i < Periods.Count; i++)
-            {
-                var editor = Periods[i];
-                if (!TimeOnly.TryParse(editor.StartText, out var start)) throw new InvalidOperationException($"Horário inicial inválido em '{editor.Name}'. Use HH:mm.");
-                if (!TimeOnly.TryParse(editor.EndText, out var end)) throw new InvalidOperationException($"Horário final inválido em '{editor.Name}'. Use HH:mm.");
-                if (start == end) throw new InvalidOperationException($"'{editor.Name}' não pode iniciar e terminar no mesmo horário.");
-                rules.Add(editor.ToRule(start, end, i * 10));
-            }
-
-            foreach (var profileEditor in MonitorProfiles)
-            {
-                var profile = _config.MonitorProfiles.First(x => x.Id == profileEditor.Id);
-                profile.Name = string.IsNullOrWhiteSpace(profileEditor.Name) ? "Monitor" : profileEditor.Name.Trim();
-            }
-
-            _config.Version = 2;
-            _config.Rules = rules;
-            await _configStore.SaveAsync(_config);
+            await SaveChangesCoreAsync();
             Status = "Configuração salva.";
         }
-        catch (Exception ex) { Status = $"Erro ao salvar: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            Status = $"Erro ao salvar: {ex.Message}";
+            _logger.Error("Erro ao salvar configuração pela interface.", ex);
+        }
         finally { Busy = false; }
+    }
+
+    private async Task SaveChangesCoreAsync()
+    {
+        var rules = new List<WallpaperRule>();
+        for (var i = 0; i < Periods.Count; i++)
+        {
+            var editor = Periods[i];
+            if (!TimeOnly.TryParse(editor.StartText, out var start)) throw new InvalidOperationException($"Horário inicial inválido em '{editor.Name}'. Use HH:mm.");
+            if (!TimeOnly.TryParse(editor.EndText, out var end)) throw new InvalidOperationException($"Horário final inválido em '{editor.Name}'. Use HH:mm.");
+            if (start == end) throw new InvalidOperationException($"'{editor.Name}' não pode iniciar e terminar no mesmo horário.");
+            rules.Add(editor.ToRule(start, end, i * 10));
+        }
+
+        foreach (var profileEditor in MonitorProfiles)
+        {
+            var profile = _config.MonitorProfiles.First(x => x.Id == profileEditor.Id);
+            profile.Name = string.IsNullOrWhiteSpace(profileEditor.Name) ? "Monitor" : profileEditor.Name.Trim();
+        }
+
+        _config.Version = 2;
+        _config.Rules = rules;
+        await _configStore.SaveAsync(_config);
     }
 
     private void AddPeriod()
@@ -227,20 +336,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Status = "Novo período criado. Ajuste e salve.";
     }
 
-    private void RemovePeriod(RuleEditorItem? item) { if (item is null) return; Periods.Remove(item); Status = $"Período '{item.Name}' removido. Salve para persistir."; }
+    private void RemovePeriod(RuleEditorItem? item)
+    {
+        if (item is null) return;
+        Periods.Remove(item);
+        Status = $"Período '{item.Name}' removido. Salve para persistir.";
+    }
 
     private async Task ApplyNowAsync()
     {
         try
         {
             Busy = true;
-            await SaveAsync();
-            if (Status.StartsWith("Erro", StringComparison.OrdinalIgnoreCase)) return;
+            await SaveChangesCoreAsync();
             await ReconcileMonitorsAsync();
-            var result = await _orchestrator.ApplyCurrentAsync();
+            var result = await _orchestrator.ReapplyCurrentAsync();
             Status = result.Applied ? $"Aplicado: {result.Message}" : result.Message;
         }
-        catch (Exception ex) { Status = $"Erro: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            Status = $"Erro: {ex.Message}";
+            _logger.Error("Erro em Aplicar agora.", ex);
+        }
         finally { Busy = false; }
     }
 
