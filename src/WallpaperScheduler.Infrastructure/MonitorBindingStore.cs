@@ -25,4 +25,12 @@ public sealed class JsonMonitorBindingStore(string path) : IMonitorBindingStore
             await JsonSerializer.SerializeAsync(stream, bindings, Options, cancellationToken);
         File.Move(temp, path, overwrite: true);
     }
+
+    public async Task RemoveAsync(Guid profileId, CancellationToken cancellationToken = default)
+    {
+        var bindings = (await LoadAsync(cancellationToken))
+            .Where(x => x.ProfileId != profileId)
+            .ToList();
+        await SaveAsync(bindings, cancellationToken);
+    }
 }
