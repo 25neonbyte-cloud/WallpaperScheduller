@@ -7,6 +7,8 @@ public enum WallpaperRotationMode { Sequential, Random }
 public enum SystemThemeMode { Light, Dark }
 public enum TemperatureApplicationMethod { Automatic, Software, DdcCi }
 public enum VisualRoutineThemeTarget { Manual, Light, Dark }
+public enum VisualControlMode { Manual, Scheduled }
+public enum ApplicationThemeMode { FollowSystem, Light, Dark }
 
 public sealed class WallpaperSourceItem
 {
@@ -56,6 +58,11 @@ public sealed class SchedulerSettings
     public bool StartWithWindows { get; set; } = true;
 }
 
+public sealed class UiSettings
+{
+    public ApplicationThemeMode Theme { get; set; } = ApplicationThemeMode.FollowSystem;
+}
+
 public sealed class VisualComfortSettings
 {
     public bool Enabled { get; set; }
@@ -67,14 +74,22 @@ public sealed class VisualComfortSettings
 public sealed class SystemThemeSettings
 {
     public bool Enabled { get; set; }
+    public VisualControlMode ControlMode { get; set; } = VisualControlMode.Manual;
     public SystemThemeMode ManualMode { get; set; } = SystemThemeMode.Light;
+    public TimeOnly LightStart { get; set; } = new(7, 0);
+    public TimeOnly DarkStart { get; set; } = new(19, 0);
 }
 
 public sealed class ColorTemperatureSettings
 {
     public bool Enabled { get; set; }
+    public VisualControlMode ControlMode { get; set; } = VisualControlMode.Manual;
     public TemperatureApplicationMethod Method { get; set; } = TemperatureApplicationMethod.Automatic;
     public int ManualKelvin { get; set; } = 6500;
+    public int DayKelvin { get; set; } = 6500;
+    public int NightKelvin { get; set; } = 4200;
+    public TimeOnly DayStart { get; set; } = new(7, 0);
+    public TimeOnly NightStart { get; set; } = new(19, 0);
     public int TransitionMinutes { get; set; } = 30;
     public bool ForceSoftwareWhenExternalTransformDetected { get; set; }
     public Dictionary<Guid, TemperatureApplicationMethod> PerMonitorMethods { get; set; } = [];
@@ -94,8 +109,9 @@ public sealed class VisualRoutineBinding
 
 public sealed class AppConfig
 {
-    public int Version { get; set; } = 3;
+    public int Version { get; set; } = 4;
     public SchedulerSettings Scheduler { get; set; } = new();
+    public UiSettings Ui { get; set; } = new();
     public List<MonitorProfile> MonitorProfiles { get; set; } = [];
     public List<WallpaperRule> Rules { get; set; } = CreateDefaultCycle();
     public VisualComfortSettings VisualComfort { get; set; } = new();
