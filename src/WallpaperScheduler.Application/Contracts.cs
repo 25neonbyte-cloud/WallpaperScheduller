@@ -49,6 +49,12 @@ public interface IWallpaperApplier
     void Apply(WallpaperState state);
 }
 
+public interface IStartupService
+{
+    bool IsEnabled { get; }
+    void SetEnabled(bool enabled);
+}
+
 public interface IClock
 {
     DateTimeOffset Now { get; }
