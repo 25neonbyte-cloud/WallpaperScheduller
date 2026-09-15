@@ -76,6 +76,66 @@ public sealed class WallpaperOrchestratorTests
     }
 
     [Fact]
+    public async Task Random_rotation_uses_every_candidate_once_before_starting_a_new_cycle()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WallpaperSchedulerTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var images = Enumerable.Range(1, 4)
+            .Select(index => Path.Combine(root, $"random-{index}.jpg"))
+            .ToArray();
+
+        foreach (var image in images)
+            await File.WriteAllBytesAsync(image, [0]);
+
+        try
+        {
+            var rule = new WallpaperRule
+            {
+                Name = "Random without repeats",
+                Enabled = true,
+                DaysOfWeek = [DayOfWeek.Monday],
+                Start = new TimeOnly(12, 0),
+                End = new TimeOnly(13, 0),
+                Scope = WallpaperScope.AllMonitors,
+                Source = Source(images),
+                RotationMode = WallpaperRotationMode.Random,
+                RotationIntervalMinutes = 1
+            };
+            var config = new AppConfig { Rules = [rule] };
+            var monitors = new[] { new MonitorInfo("device", "Monitor", 1920, 1080) };
+            var observed = new List<string>();
+
+            for (var minute = 0; minute < 8; minute++)
+            {
+                var applier = new CapturingApplier();
+                var orchestrator = new WallpaperOrchestrator(
+                    new FakeConfigStore(config),
+                    new RuleEngine(),
+                    new FakeMonitorService(monitors),
+                    new FakeResolver([]),
+                    applier,
+                    new FixedClock(new DateTimeOffset(2026, 9, 14, 12, minute, 0, TimeSpan.Zero)));
+
+                var result = await orchestrator.ApplyCurrentAsync();
+
+                Assert.True(result.Applied);
+                Assert.NotNull(applier.State);
+                observed.Add(applier.State!.Assignments.Single().ImagePath);
+            }
+
+            var expected = images.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Assert.True(expected.SetEquals(observed.Take(images.Length)));
+            Assert.True(expected.SetEquals(observed.Skip(images.Length).Take(images.Length)));
+            Assert.Equal(images.Length, observed.Take(images.Length).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.Equal(images.Length, observed.Skip(images.Length).Take(images.Length).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ReapplyCurrent_forces_wallpaper_even_when_desired_state_is_unchanged()
     {
         var root = Path.Combine(Path.GetTempPath(), "WallpaperSchedulerTests", Guid.NewGuid().ToString("N"));
@@ -121,9 +181,11 @@ public sealed class WallpaperOrchestratorTests
         }
     }
 
-    private static WallpaperSource Source(string path) => new()
+    private static WallpaperSource Source(params string[] paths) => new()
     {
-        Items = [new WallpaperSourceItem { Kind = WallpaperSourceKind.File, Path = path }]
+        Items = paths
+            .Select(path => new WallpaperSourceItem { Kind = WallpaperSourceKind.File, Path = path })
+            .ToList()
     };
 
     private sealed class FakeConfigStore(AppConfig config) : IConfigStore
