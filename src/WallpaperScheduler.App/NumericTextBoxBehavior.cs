@@ -1,6 +1,9 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
+using WpfDataFormats = System.Windows.DataFormats;
+using WpfDataObject = System.Windows.DataObject;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace WallpaperScheduler.App;
 
@@ -23,23 +26,23 @@ public static class NumericTextBoxBehavior
 
     private static void OnIsEnabledChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
     {
-        if (dependencyObject is not TextBox textBox) return;
+        if (dependencyObject is not WpfTextBox textBox) return;
 
         textBox.PreviewTextInput -= OnPreviewTextInput;
         textBox.PreviewKeyDown -= OnPreviewKeyDown;
-        DataObject.RemovePastingHandler(textBox, OnPaste);
+        WpfDataObject.RemovePastingHandler(textBox, OnPaste);
 
         if (e.NewValue is not true) return;
 
         textBox.PreviewTextInput += OnPreviewTextInput;
         textBox.PreviewKeyDown += OnPreviewKeyDown;
-        DataObject.AddPastingHandler(textBox, OnPaste);
+        WpfDataObject.AddPastingHandler(textBox, OnPaste);
     }
 
     private static void OnPreviewTextInput(object sender, TextCompositionEventArgs e) =>
         e.Handled = string.IsNullOrEmpty(e.Text) || e.Text.Any(character => !char.IsDigit(character));
 
-    private static void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    private static void OnPreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
         if (e.Key == Key.Space)
             e.Handled = true;
@@ -47,13 +50,13 @@ public static class NumericTextBoxBehavior
 
     private static void OnPaste(object sender, DataObjectPastingEventArgs e)
     {
-        if (!e.SourceDataObject.GetDataPresent(DataFormats.UnicodeText, true))
+        if (!e.SourceDataObject.GetDataPresent(WpfDataFormats.UnicodeText, true))
         {
             e.CancelCommand();
             return;
         }
 
-        var value = e.SourceDataObject.GetData(DataFormats.UnicodeText) as string ?? string.Empty;
+        var value = e.SourceDataObject.GetData(WpfDataFormats.UnicodeText) as string ?? string.Empty;
         if (value.Length == 0 || value.Any(character => !char.IsDigit(character)))
             e.CancelCommand();
     }
