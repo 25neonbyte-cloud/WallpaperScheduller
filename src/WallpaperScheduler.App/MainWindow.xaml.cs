@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using WallpaperScheduler.Application;
 using FormsScreen = System.Windows.Forms.Screen;
 using WpfButton = System.Windows.Controls.Button;
 using WpfDragEventArgs = System.Windows.DragEventArgs;
@@ -21,10 +22,12 @@ public partial class MainWindow : Window
         "WallpaperScheduler",
         "window-state.json");
 
+    private readonly IAppLogger _logger;
     private bool _restoreMaximized;
 
-    public MainWindow(MainViewModel viewModel)
+    public MainWindow(MainViewModel viewModel, IAppLogger logger)
     {
+        _logger = logger;
         InitializeComponent();
         DataContext = viewModel;
         SourceInitialized += OnSourceInitialized;
@@ -33,6 +36,11 @@ public partial class MainWindow : Window
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
+        DpiDiagnostics.Attach(this, _logger);
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() => DpiDiagnostics.LogWindow(this, _logger, "Loaded")));
+
         var saved = LoadWindowState();
         if (saved is not null && IsUsable(saved))
         {
