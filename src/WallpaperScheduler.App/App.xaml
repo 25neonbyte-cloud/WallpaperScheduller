@@ -4,6 +4,7 @@
              xmlns:local="clr-namespace:WallpaperScheduler.App">
     <Application.Resources>
         <local:EnumDisplayConverter x:Key="EnumDisplayConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
         <!-- Base visual system -->
         <LinearGradientBrush x:Key="AppBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
@@ -58,6 +59,21 @@
         <SolidColorBrush x:Key="ScheduleGroupBorderBrush" Color="#D9D0FF"/>
         <SolidColorBrush x:Key="ScheduleAccentBrush" Color="#7457E8"/>
         <SolidColorBrush x:Key="ScheduleIconBrush" Color="#ECE7FF"/>
+
+        <!-- Theme-sensitive detail resources -->
+        <SolidColorBrush x:Key="MonitorCardBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="MonitorCardBorderBrush" Color="#D9E8F8"/>
+        <SolidColorBrush x:Key="ScheduleCardBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="ScheduleCardBorderBrush" Color="#DDD8F4"/>
+        <SolidColorBrush x:Key="ScheduleDividerBrush" Color="#ECE8F9"/>
+        <SolidColorBrush x:Key="DropZoneBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="DropZoneBorderBrush" Color="#94C4FF"/>
+        <SolidColorBrush x:Key="SidebarCalloutBorderBrush" Color="#D6E8FF"/>
+        <SolidColorBrush x:Key="ComfortBadgeBrush" Color="#FFF0C8"/>
+        <SolidColorBrush x:Key="ComfortStatusBrush" Color="#FFF8E6"/>
+        <SolidColorBrush x:Key="DangerBorderBrush" Color="#F6C9CC"/>
+        <SolidColorBrush x:Key="ToggleTrackBrush" Color="#DCE4EF"/>
+        <SolidColorBrush x:Key="ToggleThumbBrush" Color="#FFFFFF"/>
 
         <!-- Shadows -->
         <DropShadowEffect x:Key="CardShadow" Color="#1B355A" BlurRadius="18" ShadowDepth="2" Opacity="0.07"/>
@@ -160,7 +176,7 @@
 
         <Style x:Key="NavButtonActiveStyle" TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
             <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
-            <Setter Property="BorderBrush" Value="#D5E8FF"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SidebarCalloutBorderBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
@@ -188,9 +204,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
-                        <Border x:Name="Track" Background="#DCE4EF" CornerRadius="12" Width="42" Height="24">
+                        <Border x:Name="Track" Background="{DynamicResource ToggleTrackBrush}" CornerRadius="12" Width="42" Height="24">
                             <Grid>
-                                <Ellipse x:Name="Thumb" Width="18" Height="18" Fill="White" HorizontalAlignment="Left" Margin="3,0,0,0">
+                                <Ellipse x:Name="Thumb" Width="18" Height="18" Fill="{DynamicResource ToggleThumbBrush}" HorizontalAlignment="Left" Margin="3,0,0,0">
                                     <Ellipse.Effect><DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.18"/></Ellipse.Effect>
                                 </Ellipse>
                             </Grid>
@@ -217,6 +233,7 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
