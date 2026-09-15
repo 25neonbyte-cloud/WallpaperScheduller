@@ -130,12 +130,19 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
     private static void ValidateConfig(AppConfig config)
     {
-        if (config.Version is < 1 or > 2)
+        if (config.Version is < 1 or > 3)
             throw new InvalidDataException($"Versão de configuração não suportada: {config.Version}.");
 
         config.Scheduler ??= new SchedulerSettings();
+        config.VisualComfort ??= new VisualComfortConfig();
+        config.VisualComfort.SystemTheme ??= new VisualComfortModuleSettings();
+        config.VisualComfort.ColorTone ??= new VisualComfortModuleSettings();
+        config.VisualComfort.VisualRoutine ??= new VisualComfortModuleSettings();
         config.MonitorProfiles ??= [];
         config.Rules ??= [];
+
+        if (config.Version < 3)
+            config.Version = 3;
 
         foreach (var rule in config.Rules)
         {
