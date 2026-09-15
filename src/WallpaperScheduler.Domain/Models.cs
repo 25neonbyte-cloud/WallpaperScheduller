@@ -53,24 +53,10 @@ public sealed class SchedulerSettings
     public bool StartWithWindows { get; set; } = true;
 }
 
-public sealed class VisualComfortModuleSettings
-{
-    public bool Enabled { get; set; }
-}
-
-public sealed class VisualComfortConfig
-{
-    public bool Enabled { get; set; }
-    public VisualComfortModuleSettings SystemTheme { get; set; } = new();
-    public VisualComfortModuleSettings ColorTone { get; set; } = new();
-    public VisualComfortModuleSettings VisualRoutine { get; set; } = new();
-}
-
 public sealed class AppConfig
 {
-    public int Version { get; set; } = 3;
+    public int Version { get; set; } = 2;
     public SchedulerSettings Scheduler { get; set; } = new();
-    public VisualComfortConfig VisualComfort { get; set; } = new();
     public List<MonitorProfile> MonitorProfiles { get; set; } = [];
     public List<WallpaperRule> Rules { get; set; } = CreateDefaultCycle();
 
