@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace WallpaperScheduler.App;
 
@@ -8,7 +10,7 @@ namespace WallpaperScheduler.App;
 /// Campo de horário 24h com máscara fixa HH:mm.
 /// O ':' nunca é removido; digitação sobrescreve apenas os quatro dígitos.
 /// </summary>
-public sealed class Time24TextBox : TextBox
+public sealed class Time24TextBox : WpfTextBox
 {
     private static readonly int[] DigitPositions = [0, 1, 3, 4];
     private bool _internalChange;
@@ -57,7 +59,7 @@ public sealed class Time24TextBox : TextBox
         }
     }
 
-    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    private void OnPreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
         if (e.Key is Key.Back)
         {
@@ -85,13 +87,13 @@ public sealed class Time24TextBox : TextBox
 
     private void OnPaste(object sender, DataObjectPastingEventArgs e)
     {
-        if (!e.SourceDataObject.GetDataPresent(DataFormats.UnicodeText, true))
+        if (!e.SourceDataObject.GetDataPresent(System.Windows.DataFormats.UnicodeText, true))
         {
             e.CancelCommand();
             return;
         }
 
-        var raw = e.SourceDataObject.GetData(DataFormats.UnicodeText) as string ?? string.Empty;
+        var raw = e.SourceDataObject.GetData(System.Windows.DataFormats.UnicodeText) as string ?? string.Empty;
         var digits = new string(raw.Where(char.IsDigit).Take(4).ToArray());
         if (digits.Length != 4)
         {
