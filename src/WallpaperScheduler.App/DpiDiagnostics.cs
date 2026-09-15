@@ -49,7 +49,7 @@ internal static class DpiDiagnostics
                 return;
             }
 
-            source.AddHook((_, message, wParam, _, ref bool handled) =>
+            source.AddHook((IntPtr hookHwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled) =>
             {
                 if (message == WmDpiChanged)
                 {
