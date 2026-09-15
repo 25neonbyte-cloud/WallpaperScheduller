@@ -6,6 +6,7 @@ public sealed class WallpaperOrchestrator(
     IConfigStore configStore,
     IRuleEngine ruleEngine,
     IMonitorService monitorService,
+    IMonitorProfileResolver monitorProfileResolver,
     IWallpaperApplier wallpaperApplier,
     IClock clock)
 {
@@ -25,13 +26,14 @@ public sealed class WallpaperOrchestrator(
 
         var rule = evaluation.Winner!;
         var monitors = monitorService.GetActiveMonitors();
-        var assignments = BuildAssignments(rule, monitors, clock.Now);
+        var resolutions = await monitorProfileResolver.ResolveAsync(config, monitors, cancellationToken);
+        var assignments = BuildAssignments(rule, monitors, resolutions, clock.Now);
         if (assignments.Count == 0)
             return new(false, $"Regra '{rule.Name}' não possui imagem aplicável aos monitores ativos.");
 
         var state = new WallpaperState(rule.Id, rule.Style, assignments);
         if (EqualsState(_lastApplied, state))
-            return new(false, "Estado desejado já está aplicado.", state);
+            return new(false, evaluation.Reason + " Estado desejado já está aplicado.", state);
 
         wallpaperApplier.Apply(state);
         _lastApplied = state;
@@ -41,6 +43,7 @@ public sealed class WallpaperOrchestrator(
     private static List<WallpaperAssignment> BuildAssignments(
         WallpaperRule rule,
         IReadOnlyList<MonitorInfo> monitors,
+        IReadOnlyList<MonitorResolution> resolutions,
         DateTimeOffset now)
     {
         var result = new List<WallpaperAssignment>();
@@ -55,10 +58,21 @@ public sealed class WallpaperOrchestrator(
             return result;
         }
 
-        foreach (var monitor in monitors)
+        foreach (var resolution in resolutions)
         {
-            if (rule.PerMonitor.TryGetValue(monitor.Id, out var image) && File.Exists(image))
-                result.Add(new(monitor.Id, image));
+            if (resolution.Monitor is null || resolution.IsAmbiguous) continue;
+
+            if (rule.PerMonitorProfiles.TryGetValue(resolution.ProfileId, out var source))
+            {
+                var image = ResolveSource(rule, source, now, resolution.ProfileId);
+                if (image is not null)
+                    result.Add(new(resolution.Monitor.Id, image));
+                continue;
+            }
+
+            // Compatibilidade com schema v1 durante migração.
+            if (rule.PerMonitor.TryGetValue(resolution.Monitor.Id, out var legacy) && File.Exists(legacy))
+                result.Add(new(resolution.Monitor.Id, legacy));
         }
 
         return result;
@@ -67,7 +81,11 @@ public sealed class WallpaperOrchestrator(
     private static string? ResolveLegacyImage(string? image) =>
         !string.IsNullOrWhiteSpace(image) && File.Exists(image) ? image : null;
 
-    private static string? ResolveSource(WallpaperRule rule, WallpaperSource? source, DateTimeOffset now)
+    private static string? ResolveSource(
+        WallpaperRule rule,
+        WallpaperSource? source,
+        DateTimeOffset now,
+        Guid? profileId = null)
     {
         if (source is null || source.Items.Count == 0) return null;
 
@@ -107,7 +125,7 @@ public sealed class WallpaperOrchestrator(
         if (rule.RotationMode == WallpaperRotationMode.Sequential)
             return candidates[(int)(slot % candidates.Count)];
 
-        var seed = HashCode.Combine(rule.Id, slot);
+        var seed = HashCode.Combine(rule.Id, profileId, slot);
         var random = new Random(seed);
         return candidates[random.Next(candidates.Count)];
     }
