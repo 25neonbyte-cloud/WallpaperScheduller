@@ -2,15 +2,40 @@ using WallpaperScheduler.Domain;
 
 namespace WallpaperScheduler.Application;
 
-public sealed record MonitorInfo(string Id, string Name, int Width, int Height);
+public sealed record MonitorInfo(string Id, string Name, int Width, int Height, string? HardwareKey = null);
 public sealed record WallpaperAssignment(string MonitorId, string ImagePath);
 public sealed record WallpaperState(Guid RuleId, WallpaperStyle Style, IReadOnlyList<WallpaperAssignment> Assignments);
 public sealed record ApplyResult(bool Applied, string Message, WallpaperState? State = null);
+
+public sealed record MonitorBinding(
+    Guid ProfileId,
+    string? HardwareKey,
+    string? LastKnownDevicePath,
+    int? LastKnownWidth,
+    int? LastKnownHeight);
+
+public sealed record MonitorResolution(
+    Guid ProfileId,
+    string ProfileName,
+    MonitorInfo? Monitor,
+    bool IsAmbiguous,
+    string Status);
 
 public interface IConfigStore
 {
     Task<AppConfig> LoadAsync(CancellationToken cancellationToken = default);
     Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default);
+}
+
+public interface IMonitorBindingStore
+{
+    Task<IReadOnlyList<MonitorBinding>> LoadAsync(CancellationToken cancellationToken = default);
+    Task SaveAsync(IReadOnlyList<MonitorBinding> bindings, CancellationToken cancellationToken = default);
+}
+
+public interface IMonitorProfileResolver
+{
+    Task<IReadOnlyList<MonitorResolution>> ResolveAsync(AppConfig config, IReadOnlyList<MonitorInfo> monitors, CancellationToken cancellationToken = default);
 }
 
 public interface IMonitorService
