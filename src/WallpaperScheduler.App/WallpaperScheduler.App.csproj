@@ -6,6 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>WallpaperScheduler</AssemblyName>
     <Product>Wallpaper Scheduler</Product>
     <Version>0.7.0</Version>
