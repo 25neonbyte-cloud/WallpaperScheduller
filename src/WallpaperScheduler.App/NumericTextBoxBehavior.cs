@@ -34,6 +34,12 @@ public static class NumericTextBoxBehavior
 
         if (e.NewValue is not true) return;
 
+        // O template global usa o Padding como margem do PART_ContentHost. Em um campo
+        // de 36 px, o padding vertical padrão reduz demais a viewport e o ScrollViewer
+        // pode recortar a parte superior dos algarismos durante a edição.
+        textBox.Padding = new Thickness(textBox.Padding.Left, 0, textBox.Padding.Right, 0);
+        textBox.VerticalContentAlignment = VerticalAlignment.Center;
+
         textBox.PreviewTextInput += OnPreviewTextInput;
         textBox.PreviewKeyDown += OnPreviewKeyDown;
         WpfDataObject.AddPastingHandler(textBox, OnPaste);
