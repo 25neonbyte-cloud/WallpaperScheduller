@@ -73,7 +73,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="Períodos do dia" FontSize="20" FontWeight="SemiBold"/>
-                    <TextBlock Margin="0,4,0,0" Opacity="0.62" Text="Todos os períodos podem ser alterados, removidos ou recriados. Use 'PerMonitor' para fontes independentes por perfil lógico."/>
+                    <TextBlock Margin="0,4,0,0" Opacity="0.62" Text="Todos os períodos podem ser alterados, removidos ou recriados. O escopo define se a fonte é global ou independente por monitor."/>
                 </StackPanel>
                 <Button Grid.Column="1" Width="130" Height="34" Content="+ Novo período" Command="{Binding AddPeriodCommand}"/>
             </Grid>
@@ -122,66 +122,90 @@
                                         <TextBlock Grid.Column="4" Margin="16,0,8,0" VerticalAlignment="Center" Text="Ajuste"/>
                                         <ComboBox Grid.Column="5" Height="30" ItemsSource="{Binding DataContext.WallpaperStyles, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Style}"/>
                                         <TextBlock Grid.Column="6" Margin="16,0,8,0" VerticalAlignment="Center" Text="Escopo"/>
-                                        <ComboBox Grid.Column="7" Height="30" ItemsSource="{Binding DataContext.WallpaperScopes, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Scope}"/>
+                                        <ComboBox Grid.Column="7" Height="30" ItemsSource="{Binding DataContext.WallpaperScopes, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding Scope, UpdateSourceTrigger=PropertyChanged}"/>
                                     </Grid>
 
-                                    <TextBlock Margin="0,16,0,6" FontWeight="SemiBold" Text="Fonte global (usada em AllMonitors)"/>
-                                    <Border Padding="16" MinHeight="88" AllowDrop="True" Drop="WallpaperDropZone_Drop" Tag="{Binding}"
-                                            BorderThickness="2" BorderBrush="#667A7F8A" CornerRadius="10" Background="#FAFBFC">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="Arraste e solte wallpapers ou pastas aqui" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                                            <TextBlock Margin="0,4,0,0" Text="Os arquivos permanecem no local original." Opacity="0.58" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <CheckBox Margin="0,7,0,0" IsChecked="{Binding IncludeSubfolders}" Content="Incluir subpastas na fonte global"/>
+                                    <StackPanel Margin="0,16,0,0">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAllMonitors}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="Fonte global"/>
+                                        <Border Padding="16" MinHeight="88" AllowDrop="True" Drop="WallpaperDropZone_Drop" Tag="{Binding}"
+                                                BorderThickness="2" BorderBrush="#667A7F8A" CornerRadius="10" Background="#FAFBFC">
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="Arraste e solte wallpapers ou pastas aqui" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                                <TextBlock Margin="0,4,0,0" Text="Aplicada igualmente a todos os monitores ativos." Opacity="0.58" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <CheckBox Margin="0,7,0,0" IsChecked="{Binding IncludeSubfolders}" Content="Incluir subpastas"/>
 
-                                    <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding Sources}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,2">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                    <TextBlock VerticalAlignment="Center" Text="{Binding Display}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"/>
-                                                    <Button Grid.Column="1" Margin="10,0,0,0" Padding="10,3" Content="Remover" Click="RemoveSource_Click" Tag="{Binding}"/>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding Sources}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,2">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding Display}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"/>
+                                                        <Button Grid.Column="1" Margin="10,0,0,0" Padding="10,3" Content="Remover" Click="RemoveSource_Click" Tag="{Binding}"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
 
-                                    <TextBlock Margin="0,18,0,6" FontWeight="SemiBold" Text="Fontes por monitor lógico (usadas em PerMonitor)"/>
-                                    <ItemsControl ItemsSource="{Binding MonitorSources}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Margin="0,0,0,8" Padding="12" BorderBrush="#22000000" BorderThickness="1" CornerRadius="8" Background="#FCFCFD">
-                                                    <StackPanel>
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                            <TextBlock FontWeight="SemiBold" Text="{Binding ProfileName}"/>
-                                                            <CheckBox Grid.Column="1" IsChecked="{Binding IncludeSubfolders}" Content="Incluir subpastas"/>
-                                                        </Grid>
-                                                        <Border Margin="0,8,0,0" Padding="12" MinHeight="58" AllowDrop="True" Drop="MonitorWallpaperDropZone_Drop" Tag="{Binding}"
-                                                                BorderThickness="1" BorderBrush="#667A7F8A" CornerRadius="7" Background="White">
-                                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Arraste arquivos ou pastas para este monitor" Opacity="0.7"/>
-                                                        </Border>
-                                                        <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Sources}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Grid Margin="0,2">
-                                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                                        <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"/>
-                                                                        <Button Grid.Column="1" Margin="10,0,0,0" Padding="8,2" Content="Remover" Click="RemoveMonitorSource_Click" Tag="{Binding}"/>
-                                                                    </Grid>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <StackPanel Margin="0,16,0,0">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPerMonitor}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="Fontes independentes por monitor"/>
+                                        <ItemsControl ItemsSource="{Binding MonitorSources}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,8" Padding="12" BorderBrush="#22000000" BorderThickness="1" CornerRadius="8" Background="#FCFCFD">
+                                                        <StackPanel>
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                                <TextBlock FontWeight="SemiBold" Text="{Binding ProfileName}"/>
+                                                                <CheckBox Grid.Column="1" IsChecked="{Binding IncludeSubfolders}" Content="Incluir subpastas"/>
+                                                            </Grid>
+                                                            <Border Margin="0,8,0,0" Padding="12" MinHeight="58" AllowDrop="True" Drop="MonitorWallpaperDropZone_Drop" Tag="{Binding}"
+                                                                    BorderThickness="1" BorderBrush="#667A7F8A" CornerRadius="7" Background="White">
+                                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Arraste arquivos ou pastas para este monitor" Opacity="0.7"/>
+                                                            </Border>
+                                                            <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Sources}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Grid Margin="0,2">
+                                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                                            <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"/>
+                                                                            <Button Grid.Column="1" Margin="10,0,0,0" Padding="8,2" Content="Remover" Click="RemoveMonitorSource_Click" Tag="{Binding}"/>
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
 
                                     <Grid Margin="0,14,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Opacity="0.55" VerticalAlignment="Center" Text="Perfis lógicos são portáteis; vínculos físicos ficam somente neste computador."/>
+                                        <TextBlock Opacity="0.55" VerticalAlignment="Center" Text="O escopo selecionado define qual conjunto de fontes será usado."/>
                                         <Button Grid.Column="1" Width="120" Height="30" Content="Excluir período" Command="{Binding DataContext.RemovePeriodCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                     </Grid>
                                 </StackPanel>
