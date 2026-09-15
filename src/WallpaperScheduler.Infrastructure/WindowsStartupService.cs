@@ -115,7 +115,7 @@ public sealed class WindowsStartupService : IStartupService
             shellLink.SetIconLocation(executable, 0);
 
             var persistFile = (IPersistFile)shellLink;
-            persistFile.Save(shortcutPath, remember: true);
+            persistFile.Save(shortcutPath, true);
         }
         finally
         {
