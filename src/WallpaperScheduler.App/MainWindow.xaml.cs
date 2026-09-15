@@ -59,6 +59,13 @@ public partial class MainWindow : Window
         viewModel.RemoveMonitorSource(monitorSource, source);
     }
 
+    private async void ForgetMonitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel viewModel) return;
+        if (sender is not MenuItem menuItem || menuItem.DataContext is not MonitorProfileEditorItem profile) return;
+        await viewModel.ForgetMonitorAsync(profile);
+    }
+
     private static RuleEditorItem? FindRuleEditor(DependencyObject? current)
     {
         while (current is not null)
