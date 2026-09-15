@@ -22,7 +22,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         {
             var initial = new AppConfig();
             await SaveAsync(initial, cancellationToken);
-            logger?.Info("Configuração inicial criada no schema v3.");
+            logger?.Info("Configuração inicial criada no schema v4.");
             return initial;
         }
 
@@ -32,7 +32,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
             if (migrated)
             {
                 await SaveAsync(config, cancellationToken);
-                logger?.Info("Configuração migrada automaticamente para o schema v3; módulos de conforto preservados/desligados quando ausentes.");
+                logger?.Info("Configuração migrada automaticamente para o schema v4; horários e tema do aplicativo receberam padrões seguros quando ausentes.");
             }
             return config;
         }
@@ -107,7 +107,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
         var (imported, migrated) = await ReadConfigAsync(sourcePath, cancellationToken);
         logger?.Info(migrated
-            ? $"Configuração importada de '{sourcePath}' e migrada para o schema v3."
+            ? $"Configuração importada de '{sourcePath}' e migrada para o schema v4."
             : $"Configuração importada de '{sourcePath}'.");
         return imported;
     }
@@ -119,7 +119,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
                      ?? throw new InvalidDataException("O JSON não contém uma configuração válida.");
         var originalVersion = config.Version;
         NormalizeAndValidate(config);
-        return (config, originalVersion < 3);
+        return (config, originalVersion < 4);
     }
 
     private async Task WritePrimaryWithoutBackupAsync(AppConfig config, CancellationToken cancellationToken)
@@ -139,10 +139,11 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
     private static void NormalizeAndValidate(AppConfig config)
     {
-        if (config.Version is < 1 or > 3)
+        if (config.Version is < 1 or > 4)
             throw new InvalidDataException($"Versão de configuração não suportada: {config.Version}.");
 
         config.Scheduler ??= new SchedulerSettings();
+        config.Ui ??= new UiSettings();
         config.MonitorProfiles ??= [];
         config.Rules ??= [];
         config.VisualComfort ??= new VisualComfortSettings();
@@ -154,6 +155,8 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
         config.Scheduler.HeartbeatSeconds = Math.Clamp(config.Scheduler.HeartbeatSeconds, 10, 3600);
         config.VisualComfort.Temperature.ManualKelvin = Math.Clamp(config.VisualComfort.Temperature.ManualKelvin, 3400, 6500);
+        config.VisualComfort.Temperature.DayKelvin = Math.Clamp(config.VisualComfort.Temperature.DayKelvin, 3400, 6500);
+        config.VisualComfort.Temperature.NightKelvin = Math.Clamp(config.VisualComfort.Temperature.NightKelvin, 3400, 6500);
         config.VisualComfort.Temperature.TransitionMinutes = Math.Clamp(config.VisualComfort.Temperature.TransitionMinutes, 0, 240);
 
         foreach (var rule in config.Rules)
@@ -188,7 +191,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
                 pair.Value.TemperatureKelvin = Math.Clamp(kelvin, 3400, 6500);
         }
 
-        config.Version = 3;
+        config.Version = 4;
     }
 
     private string GetConfigDirectory() =>
