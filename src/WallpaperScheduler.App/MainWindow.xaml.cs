@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using WpfButton = System.Windows.Controls.Button;
 using WpfDragEventArgs = System.Windows.DragEventArgs;
+using WpfMenuItem = System.Windows.Controls.MenuItem;
 
 namespace WallpaperScheduler.App;
 
@@ -43,7 +45,7 @@ public partial class MainWindow : Window
     private void RemoveSource_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel viewModel) return;
-        if (sender is not Button button || button.Tag is not SourceEditorItem source) return;
+        if (sender is not WpfButton button || button.Tag is not SourceEditorItem source) return;
 
         var rule = FindRuleEditor(button);
         if (rule is null) return;
@@ -53,7 +55,7 @@ public partial class MainWindow : Window
     private void RemoveMonitorSource_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel viewModel) return;
-        if (sender is not Button button || button.Tag is not SourceEditorItem source) return;
+        if (sender is not WpfButton button || button.Tag is not SourceEditorItem source) return;
 
         var monitorSource = FindMonitorSourceEditor(button);
         if (monitorSource is null) return;
@@ -63,7 +65,7 @@ public partial class MainWindow : Window
     private async void ForgetMonitor_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel viewModel) return;
-        if (sender is not MenuItem menuItem || menuItem.DataContext is not MonitorProfileEditorItem profile) return;
+        if (sender is not WpfMenuItem menuItem || menuItem.DataContext is not MonitorProfileEditorItem profile) return;
         await viewModel.ForgetMonitorAsync(profile);
     }
 
