@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using WpfDataObject = System.Windows.DataObject;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
@@ -25,7 +26,7 @@ public sealed class Time24TextBox : WpfTextBox
         PreviewKeyDown += OnPreviewKeyDown;
         GotKeyboardFocus += OnGotKeyboardFocus;
         TextChanged += OnTextChanged;
-        DataObject.AddPastingHandler(this, OnPaste);
+        WpfDataObject.AddPastingHandler(this, OnPaste);
     }
 
     private void OnGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -39,7 +40,6 @@ public sealed class Time24TextBox : WpfTextBox
         if (_internalChange || string.IsNullOrEmpty(Text)) return;
         if (IsValidTime(Text)) return;
 
-        // Binding/migração pode fornecer um horário sem zero à esquerda.
         if (TimeOnly.TryParse(Text, out var parsed))
             SetText(parsed.ToString("HH:mm"), Math.Min(CaretIndex, 5));
     }
@@ -141,13 +141,10 @@ public sealed class Time24TextBox : WpfTextBox
         var chars = Text.ToCharArray();
         chars[position] = digit;
 
-        // Validação imediata do relógio 24h: 00–23 e 00–59.
         if (position == 0 && digit > '2') return false;
         if (position == 1 && chars[0] == '2' && digit > '3') return false;
         if (position == 3 && digit > '5') return false;
 
-        // Se a dezena da hora passar para 2 e a unidade antiga for inválida,
-        // corrige somente a unidade sem remover a máscara.
         if (position == 0 && digit == '2' && chars[1] > '3')
             chars[1] = '0';
 
