@@ -13,6 +13,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly WallpaperOrchestrator _orchestrator;
     private readonly IMonitorService _monitorService;
+    private readonly IMonitorProfileResolver _monitorProfileResolver;
     private readonly IConfigStore _configStore;
     private AppConfig _config = new();
     private string _status = "Carregando configuração...";
@@ -22,25 +23,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public MainViewModel(
         WallpaperOrchestrator orchestrator,
         IMonitorService monitorService,
+        IMonitorProfileResolver monitorProfileResolver,
         IConfigStore configStore)
     {
         _orchestrator = orchestrator;
         _monitorService = monitorService;
+        _monitorProfileResolver = monitorProfileResolver;
         _configStore = configStore;
 
         ApplyNowCommand = new AsyncCommand(ApplyNowAsync, () => !Busy);
-        RefreshMonitorsCommand = new RelayCommand(RefreshMonitors, () => !Busy);
+        RefreshMonitorsCommand = new AsyncCommand(RefreshMonitorsAsync, () => !Busy);
         SaveCommand = new AsyncCommand(SaveAsync, () => !Busy);
         AddPeriodCommand = new RelayCommand(AddPeriod, () => !Busy);
         RemovePeriodCommand = new RelayCommand<RuleEditorItem>(RemovePeriod, item => !Busy && item is not null);
 
-        RefreshMonitors();
         _ = LoadAsync();
     }
 
     public ObservableCollection<RuleEditorItem> Periods { get; } = [];
+    public ObservableCollection<MonitorProfileEditorItem> MonitorProfiles { get; } = [];
     public Array RotationModes { get; } = Enum.GetValues<WallpaperRotationMode>();
     public Array WallpaperStyles { get; } = Enum.GetValues<WallpaperStyle>();
+    public Array WallpaperScopes { get; } = Enum.GetValues<WallpaperScope>();
 
     public string Status { get => _status; private set { _status = value; OnPropertyChanged(); } }
     public string MonitorDiagnostics { get => _monitorDiagnostics; private set { _monitorDiagnostics = value; OnPropertyChanged(); } }
@@ -62,7 +66,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand AddPeriodCommand { get; }
     public ICommand RemovePeriodCommand { get; }
 
-    public void AddDroppedSources(RuleEditorItem item, IEnumerable<string> paths)
+    public void AddDroppedSources(RuleEditorItem item, IEnumerable<string> paths) =>
+        AddSources(item.Sources, paths, item.Name);
+
+    public void AddDroppedMonitorSources(MonitorSourceEditorItem item, IEnumerable<string> paths) =>
+        AddSources(item.Sources, paths, item.ProfileName);
+
+    private void AddSources(ObservableCollection<SourceEditorItem> target, IEnumerable<string> paths, string label)
     {
         var added = 0;
         foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -74,14 +84,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     : (WallpaperSourceKind?)null;
 
             if (kind is null) continue;
-            if (item.Sources.Any(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
+            if (target.Any(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
 
-            item.Sources.Add(new SourceEditorItem(kind.Value, path));
+            target.Add(new SourceEditorItem(kind.Value, path));
             added++;
         }
 
         Status = added > 0
-            ? $"{added} fonte(s) adicionada(s) a '{item.Name}'. Salve para persistir."
+            ? $"{added} fonte(s) adicionada(s) a '{label}'. Salve para persistir."
             : "Nenhuma fonte válida foi adicionada.";
     }
 
@@ -91,17 +101,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Status = "Fonte removida. Salve para persistir.";
     }
 
+    public void RemoveMonitorSource(MonitorSourceEditorItem item, SourceEditorItem source)
+    {
+        item.Sources.Remove(source);
+        Status = "Fonte do monitor removida. Salve para persistir.";
+    }
+
     private async Task LoadAsync()
     {
         try
         {
             Busy = true;
             _config = await _configStore.LoadAsync();
-            Periods.Clear();
-
-            foreach (var rule in _config.Rules.OrderBy(r => r.Order))
-                Periods.Add(RuleEditorItem.FromRule(rule));
-
+            await ReconcileMonitorsAsync();
+            LoadEditors();
             Status = Periods.Count == 0
                 ? "Nenhum período configurado. Use '+ Novo período'."
                 : $"{Periods.Count} período(s) carregado(s).";
@@ -111,6 +124,60 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Status = $"Erro ao carregar configuração: {ex.Message}";
         }
         finally { Busy = false; }
+    }
+
+    private void LoadEditors()
+    {
+        Periods.Clear();
+        foreach (var rule in _config.Rules.OrderBy(r => r.Order))
+            Periods.Add(RuleEditorItem.FromRule(rule, _config.MonitorProfiles));
+    }
+
+    private async Task ReconcileMonitorsAsync()
+    {
+        var monitors = _monitorService.GetActiveMonitors();
+        var resolutions = await _monitorProfileResolver.ResolveAsync(_config, monitors);
+
+        MonitorProfiles.Clear();
+        foreach (var profile in _config.MonitorProfiles)
+        {
+            var resolution = resolutions.FirstOrDefault(x => x.ProfileId == profile.Id);
+            MonitorProfiles.Add(new(profile.Id, profile.Name, resolution?.Status ?? "Sem vínculo local.", resolution?.Monitor is not null));
+        }
+
+        var text = new StringBuilder();
+        text.Append($"Perfis: {MonitorProfiles.Count} · Monitores ativos: {monitors.Count}");
+        foreach (var item in MonitorProfiles)
+            text.Append($"  •  {item.Name}: {(item.IsConnected ? "conectado" : "ausente")}");
+        MonitorDiagnostics = text.ToString();
+    }
+
+    private async Task RefreshMonitorsAsync()
+    {
+        try
+        {
+            Busy = true;
+            await ReconcileMonitorsAsync();
+            SyncMonitorSourcesAcrossRules();
+            Status = "Monitores reconciliados.";
+        }
+        catch (Exception ex)
+        {
+            MonitorDiagnostics = $"Erro ao detectar monitores: {ex.Message}";
+        }
+        finally { Busy = false; }
+    }
+
+    private void SyncMonitorSourcesAcrossRules()
+    {
+        foreach (var rule in Periods)
+        {
+            foreach (var profile in _config.MonitorProfiles)
+            {
+                if (rule.MonitorSources.All(x => x.ProfileId != profile.Id))
+                    rule.MonitorSources.Add(new(profile.Id, profile.Name));
+            }
+        }
     }
 
     private async Task SaveAsync()
@@ -131,6 +198,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     throw new InvalidOperationException($"'{editor.Name}' não pode iniciar e terminar no mesmo horário.");
 
                 rules.Add(editor.ToRule(start, end, i * 10));
+            }
+
+            foreach (var profileEditor in MonitorProfiles)
+            {
+                var profile = _config.MonitorProfiles.First(x => x.Id == profileEditor.Id);
+                profile.Name = string.IsNullOrWhiteSpace(profileEditor.Name) ? "Monitor" : profileEditor.Name.Trim();
             }
 
             _config.Version = 2;
@@ -157,8 +230,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Priority = 100,
             RotationMode = WallpaperRotationMode.Sequential,
             Style = WallpaperStyle.Fill,
+            Scope = WallpaperScope.AllMonitors,
             DaysOfWeek = new HashSet<DayOfWeek>(Enum.GetValues<DayOfWeek>())
         };
+        foreach (var profile in _config.MonitorProfiles)
+            item.MonitorSources.Add(new(profile.Id, profile.Name));
         Periods.Add(item);
         Status = "Novo período criado. Ajuste e salve.";
     }
@@ -170,29 +246,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Status = $"Período '{item.Name}' removido. Salve para persistir.";
     }
 
-    private void RefreshMonitors()
-    {
-        try
-        {
-            var monitors = _monitorService.GetActiveMonitors();
-            if (monitors.Count == 0)
-            {
-                MonitorDiagnostics = "Nenhum monitor ativo detectado.";
-                return;
-            }
-
-            var text = new StringBuilder();
-            text.Append($"Monitores ativos: {monitors.Count}");
-            foreach (var monitor in monitors)
-                text.Append($"  •  {monitor.Width}×{monitor.Height}");
-            MonitorDiagnostics = text.ToString();
-        }
-        catch (Exception ex)
-        {
-            MonitorDiagnostics = $"Erro ao detectar monitores: {ex.Message}";
-        }
-    }
-
     private async Task ApplyNowAsync()
     {
         try
@@ -201,7 +254,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await SaveAsync();
             if (Status.StartsWith("Erro", StringComparison.OrdinalIgnoreCase)) return;
 
-            RefreshMonitors();
+            await ReconcileMonitorsAsync();
             var result = await _orchestrator.ApplyCurrentAsync();
             Status = result.Applied ? $"Aplicado: {result.Message}" : result.Message;
         }
@@ -213,7 +266,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         (ApplyNowCommand as AsyncCommand)?.RaiseCanExecuteChanged();
         (SaveCommand as AsyncCommand)?.RaiseCanExecuteChanged();
-        (RefreshMonitorsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (RefreshMonitorsCommand as AsyncCommand)?.RaiseCanExecuteChanged();
         (AddPeriodCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (RemovePeriodCommand as RelayCommand<RuleEditorItem>)?.RaiseCanExecuteChanged();
     }
@@ -232,22 +285,26 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
     private int? _rotationIntervalMinutes;
     private WallpaperRotationMode _rotationMode;
     private WallpaperStyle _style = WallpaperStyle.Fill;
+    private WallpaperScope _scope = WallpaperScope.AllMonitors;
     private bool _includeSubfolders;
 
     public Guid Id { get; set; }
     public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
     public string StartText { get => _startText; set { _startText = value; OnPropertyChanged(); } }
     public string EndText { get => _endText; set { _endText = value; OnPropertyChanged(); } }
-    public bool Enabled { get => _enabled; set { _enabled = value; OnPropertyChanged(); } }
+    public bool Enabled { get => _enabled; set { _enabled = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsPerMonitor)); } }
     public int Priority { get => _priority; set { _priority = value; OnPropertyChanged(); } }
     public int? RotationIntervalMinutes { get => _rotationIntervalMinutes; set { _rotationIntervalMinutes = value; OnPropertyChanged(); } }
     public WallpaperRotationMode RotationMode { get => _rotationMode; set { _rotationMode = value; OnPropertyChanged(); } }
     public WallpaperStyle Style { get => _style; set { _style = value; OnPropertyChanged(); } }
+    public WallpaperScope Scope { get => _scope; set { _scope = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsPerMonitor)); } }
+    public bool IsPerMonitor => Scope == WallpaperScope.PerMonitor;
     public bool IncludeSubfolders { get => _includeSubfolders; set { _includeSubfolders = value; OnPropertyChanged(); } }
     public HashSet<DayOfWeek> DaysOfWeek { get; set; } = [];
     public ObservableCollection<SourceEditorItem> Sources { get; } = [];
+    public ObservableCollection<MonitorSourceEditorItem> MonitorSources { get; } = [];
 
-    public static RuleEditorItem FromRule(WallpaperRule rule)
+    public static RuleEditorItem FromRule(WallpaperRule rule, IReadOnlyCollection<MonitorProfile> profiles)
     {
         var item = new RuleEditorItem
         {
@@ -260,6 +317,7 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
             RotationIntervalMinutes = rule.RotationIntervalMinutes,
             RotationMode = rule.RotationMode,
             Style = rule.Style,
+            Scope = rule.Scope,
             DaysOfWeek = new HashSet<DayOfWeek>(rule.DaysOfWeek),
             IncludeSubfolders = rule.Source?.IncludeSubfolders ?? false
         };
@@ -270,6 +328,18 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
 
         if (!string.IsNullOrWhiteSpace(rule.Image) && item.Sources.Count == 0)
             item.Sources.Add(new(WallpaperSourceKind.File, rule.Image));
+
+        foreach (var profile in profiles)
+        {
+            var monitorSource = new MonitorSourceEditorItem(profile.Id, profile.Name);
+            if (rule.PerMonitorProfiles.TryGetValue(profile.Id, out var source))
+            {
+                monitorSource.IncludeSubfolders = source.IncludeSubfolders;
+                foreach (var sourceItem in source.Items)
+                    monitorSource.Sources.Add(new(sourceItem.Kind, sourceItem.Path));
+            }
+            item.MonitorSources.Add(monitorSource);
+        }
 
         return item;
     }
@@ -287,16 +357,58 @@ public sealed class RuleEditorItem : INotifyPropertyChanged
         Start = start,
         End = end,
         Style = Style,
-        Scope = WallpaperScope.AllMonitors,
+        Scope = Scope,
         RotationMode = RotationMode,
         RotationIntervalMinutes = RotationIntervalMinutes is > 0 ? RotationIntervalMinutes : null,
         Source = new WallpaperSource
         {
             IncludeSubfolders = IncludeSubfolders,
             Items = Sources.Select(x => new WallpaperSourceItem { Kind = x.Kind, Path = x.Path }).ToList()
-        }
+        },
+        PerMonitorProfiles = MonitorSources.ToDictionary(
+            x => x.ProfileId,
+            x => new WallpaperSource
+            {
+                IncludeSubfolders = x.IncludeSubfolders,
+                Items = x.Sources.Select(s => new WallpaperSourceItem { Kind = s.Kind, Path = s.Path }).ToList()
+            })
     };
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
+}
+
+public sealed class MonitorSourceEditorItem : INotifyPropertyChanged
+{
+    private string _profileName;
+    private bool _includeSubfolders;
+
+    public MonitorSourceEditorItem(Guid profileId, string profileName)
+    {
+        ProfileId = profileId;
+        _profileName = profileName;
+    }
+
+    public Guid ProfileId { get; }
+    public string ProfileName { get => _profileName; set { _profileName = value; OnPropertyChanged(); } }
+    public bool IncludeSubfolders { get => _includeSubfolders; set { _includeSubfolders = value; OnPropertyChanged(); } }
+    public ObservableCollection<SourceEditorItem> Sources { get; } = [];
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
+}
+
+public sealed class MonitorProfileEditorItem : INotifyPropertyChanged
+{
+    private string _name;
+    public MonitorProfileEditorItem(Guid id, string name, string status, bool isConnected)
+    {
+        Id = id; _name = name; Status = status; IsConnected = isConnected;
+    }
+    public Guid Id { get; }
+    public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
+    public string Status { get; }
+    public bool IsConnected { get; }
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }
