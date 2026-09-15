@@ -16,11 +16,13 @@ public sealed class MonitorProfileResolver(
         var usedMonitorIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var changedBindings = false;
         var changedConfig = false;
+        var hasAmbiguity = false;
 
         foreach (var profile in config.MonitorProfiles)
         {
             var binding = bindings.FirstOrDefault(x => x.ProfileId == profile.Id);
             var match = ResolveExisting(binding, monitors, usedMonitorIds, out var ambiguous, out var status);
+            hasAmbiguity |= ambiguous;
 
             if (match is not null)
             {
@@ -33,21 +35,26 @@ public sealed class MonitorProfileResolver(
             resolutions.Add(new(profile.Id, profile.Name, match, ambiguous, status));
         }
 
-        var unmatched = monitors.Where(x => !usedMonitorIds.Contains(x.Id)).ToList();
-        foreach (var monitor in unmatched)
+        // Em presença de qualquer ambiguidade, não cria novos perfis automaticamente.
+        // Isso evita duplicar perfis ou associar um monitor físico ao perfil errado.
+        if (!hasAmbiguity)
         {
-            var profile = new MonitorProfile
+            var unmatched = monitors.Where(x => !usedMonitorIds.Contains(x.Id)).ToList();
+            foreach (var monitor in unmatched)
             {
-                Name = NextProfileName(config.MonitorProfiles)
-            };
-            config.MonitorProfiles.Add(profile);
-            changedConfig = true;
+                var profile = new MonitorProfile
+                {
+                    Name = NextProfileName(config.MonitorProfiles)
+                };
+                config.MonitorProfiles.Add(profile);
+                changedConfig = true;
 
-            var binding = new MonitorBinding(profile.Id, monitor.HardwareKey, monitor.Id, monitor.Width, monitor.Height);
-            bindings.Add(binding);
-            changedBindings = true;
-            usedMonitorIds.Add(monitor.Id);
-            resolutions.Add(new(profile.Id, profile.Name, monitor, false, "Associado automaticamente neste computador."));
+                var binding = new MonitorBinding(profile.Id, monitor.HardwareKey, monitor.Id, monitor.Width, monitor.Height);
+                bindings.Add(binding);
+                changedBindings = true;
+                usedMonitorIds.Add(monitor.Id);
+                resolutions.Add(new(profile.Id, profile.Name, monitor, false, "Associado automaticamente neste computador."));
+            }
         }
 
         if (changedBindings)
