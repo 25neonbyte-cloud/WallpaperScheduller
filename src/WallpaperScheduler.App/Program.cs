@@ -10,6 +10,7 @@ public static class Program
     public static void Main()
     {
         FormsApplication.SetHighDpiMode(FormsHighDpiMode.PerMonitorV2);
+        RenderingBootstrap.Configure();
 
         var app = new App();
         app.InitializeComponent();
