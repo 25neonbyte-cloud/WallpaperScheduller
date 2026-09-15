@@ -51,7 +51,9 @@ public sealed class VisualComfortOrchestrator(
         }
 
         _wasActive = true;
-        var evaluation = ruleEngine.Evaluate(config.Rules, clock.Now);
+        var now = clock.Now;
+        var localTime = TimeOnly.FromDateTime(now.LocalDateTime);
+        var evaluation = ruleEngine.Evaluate(config.Rules, now);
         VisualRoutineBinding? binding = null;
         if (comfort.Routine.Enabled && evaluation.Winner is { } winner)
             comfort.Routine.Bindings.TryGetValue(winner.Id, out binding);
@@ -61,7 +63,8 @@ public sealed class VisualComfortOrchestrator(
 
         if (comfort.SystemTheme.Enabled)
         {
-            var desiredTheme = ResolveTheme(comfort.SystemTheme.ManualMode, binding);
+            var baseTheme = ResolveBaseTheme(comfort.SystemTheme, localTime);
+            var desiredTheme = ResolveTheme(baseTheme, binding);
             if (forceReapply || _lastTheme != desiredTheme)
             {
                 var themeResult = systemThemeService.Apply(desiredTheme);
@@ -79,11 +82,11 @@ public sealed class VisualComfortOrchestrator(
 
         if (comfort.Temperature.Enabled)
         {
-            var targetKelvin = Math.Clamp(
-                binding?.TemperatureKelvin ?? comfort.Temperature.ManualKelvin,
-                3400,
-                6500);
-            var effectiveKelvin = forceReapply
+            var baseTargetKelvin = ResolveBaseTemperature(comfort.Temperature, localTime);
+            var routineTargetKelvin = binding?.TemperatureKelvin;
+            var targetKelvin = Math.Clamp(routineTargetKelvin ?? baseTargetKelvin, 3400, 6500);
+            var clockDriven = comfort.Temperature.ControlMode == VisualControlMode.Scheduled && routineTargetKelvin is null;
+            var effectiveKelvin = forceReapply || clockDriven
                 ? targetKelvin
                 : StepTowardTarget(
                     _lastAppliedKelvin,
@@ -138,13 +141,76 @@ public sealed class VisualComfortOrchestrator(
         return new(applied, string.Join(" ", messages));
     }
 
-    private static SystemThemeMode ResolveTheme(SystemThemeMode manualMode, VisualRoutineBinding? binding) =>
+    private static SystemThemeMode ResolveBaseTheme(SystemThemeSettings settings, TimeOnly localTime)
+    {
+        if (settings.ControlMode != VisualControlMode.Scheduled || settings.LightStart == settings.DarkStart)
+            return settings.ManualMode;
+
+        return IsWithin(localTime, settings.LightStart, settings.DarkStart)
+            ? SystemThemeMode.Light
+            : SystemThemeMode.Dark;
+    }
+
+    private static SystemThemeMode ResolveTheme(SystemThemeMode baseTheme, VisualRoutineBinding? binding) =>
         binding?.Theme switch
         {
             VisualRoutineThemeTarget.Light => SystemThemeMode.Light,
             VisualRoutineThemeTarget.Dark => SystemThemeMode.Dark,
-            _ => manualMode
+            _ => baseTheme
         };
+
+    private static int ResolveBaseTemperature(ColorTemperatureSettings settings, TimeOnly localTime)
+    {
+        if (settings.ControlMode != VisualControlMode.Scheduled || settings.DayStart == settings.NightStart)
+            return settings.ManualKelvin;
+
+        var dayKelvin = Math.Clamp(settings.DayKelvin, 3400, 6500);
+        var nightKelvin = Math.Clamp(settings.NightKelvin, 3400, 6500);
+        var transition = Math.Max(0, settings.TransitionMinutes);
+        if (transition == 0)
+            return IsWithin(localTime, settings.DayStart, settings.NightStart) ? dayKelvin : nightKelvin;
+
+        var dayStart = ToMinutes(settings.DayStart);
+        var nightStart = ToMinutes(settings.NightStart);
+        var current = ToMinutes(localTime);
+        var daySpan = ForwardMinutes(dayStart, nightStart);
+        var nightSpan = ForwardMinutes(nightStart, dayStart);
+        var safeTransition = Math.Min(transition, (int)Math.Floor(Math.Min(daySpan, nightSpan)));
+        if (safeTransition <= 0)
+            return IsWithin(localTime, settings.DayStart, settings.NightStart) ? dayKelvin : nightKelvin;
+
+        var sinceDayStart = ForwardMinutes(dayStart, current);
+        if (sinceDayStart < safeTransition)
+            return InterpolateKelvin(nightKelvin, dayKelvin, sinceDayStart / safeTransition);
+
+        var sinceNightStart = ForwardMinutes(nightStart, current);
+        if (sinceNightStart < safeTransition)
+            return InterpolateKelvin(dayKelvin, nightKelvin, sinceNightStart / safeTransition);
+
+        return IsWithin(localTime, settings.DayStart, settings.NightStart) ? dayKelvin : nightKelvin;
+    }
+
+    private static bool IsWithin(TimeOnly value, TimeOnly start, TimeOnly end)
+    {
+        if (start < end)
+            return value >= start && value < end;
+        return value >= start || value < end;
+    }
+
+    private static double ToMinutes(TimeOnly value) =>
+        (value.Hour * 60.0) + value.Minute + (value.Second / 60.0) + (value.Millisecond / 60000.0);
+
+    private static double ForwardMinutes(double from, double to)
+    {
+        var value = to - from;
+        return value < 0 ? value + 1440.0 : value;
+    }
+
+    private static int InterpolateKelvin(int from, int to, double progress)
+    {
+        progress = Math.Clamp(progress, 0.0, 1.0);
+        return (int)Math.Round(from + ((to - from) * progress), MidpointRounding.AwayFromZero);
+    }
 
     private static int StepTowardTarget(int? current, int target, int transitionMinutes, int heartbeatSeconds)
     {
