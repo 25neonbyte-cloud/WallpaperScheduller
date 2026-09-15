@@ -51,7 +51,7 @@ public sealed class MonitorProfileResolverTests
     }
 
     [Fact]
-    public async Task Identical_monitors_are_not_silently_swapped_when_binding_is_lost()
+    public async Task Identical_monitors_are_not_silently_swapped_or_duplicated_when_binding_is_lost()
     {
         var profile = new MonitorProfile { Name = "Monitor principal" };
         var config = new AppConfig { Rules = [], MonitorProfiles = [profile] };
@@ -68,9 +68,11 @@ public sealed class MonitorProfileResolverTests
             new MonitorInfo("new-b", "Monitor 2", 1920, 1080, "DISPLAY#SAME")
         ]);
 
-        var original = result.Single(x => x.ProfileId == profile.Id);
+        var original = Assert.Single(result);
+        Assert.Equal(profile.Id, original.ProfileId);
         Assert.Null(original.Monitor);
         Assert.True(original.IsAmbiguous);
+        Assert.Single(config.MonitorProfiles);
     }
 
     private sealed class FakeConfigStore(AppConfig config) : IConfigStore
