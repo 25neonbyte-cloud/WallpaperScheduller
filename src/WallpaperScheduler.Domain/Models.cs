@@ -67,7 +67,7 @@ public sealed class AppConfig
         [
             Period("Após meia-noite", 0, 0, 5, 30, 0, everyDay),
             Period("Nascer do sol", 5, 30, 10, 0, 10, everyDay),
-            Period("Dia claro", 10, 0, 16, 0, 20, 20, everyDay),
+            Period("Dia claro", 10, 0, 16, 0, 20, everyDay),
             Period("Pôr do sol", 16, 0, 18, 45, 30, everyDay),
             Period("Noite", 18, 45, 0, 0, 40, everyDay)
         ];
