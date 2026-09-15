@@ -57,6 +57,7 @@ public partial class App : System.Windows.Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
         _logger.Info("Wallpaper Scheduler iniciado.");
+        DpiDiagnostics.LogProcess(_logger);
 
         var loop = _services.GetRequiredService<WallpaperSchedulerHostedLoop>();
         loop.Start();
