@@ -21,6 +21,12 @@ public sealed record MonitorResolution(
     bool IsAmbiguous,
     string Status);
 
+public sealed record StartupRegistrationStatus(
+    bool Enabled,
+    bool Valid,
+    string Message,
+    string? RegistrationPath = null);
+
 public interface IConfigStore
 {
     Task<AppConfig> LoadAsync(CancellationToken cancellationToken = default);
@@ -52,6 +58,7 @@ public interface IWallpaperApplier
 public interface IStartupService
 {
     bool IsEnabled { get; }
+    StartupRegistrationStatus GetStatus();
     void SetEnabled(bool enabled);
 }
 
