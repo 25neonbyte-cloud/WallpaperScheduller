@@ -14,6 +14,8 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         var services = new ServiceCollection();
         var basePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WallpaperScheduler");
         var configPath = Path.Combine(basePath, "config.json");
@@ -24,6 +26,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IConfigStore>(_ => new JsonConfigStore(configPath));
         services.AddSingleton<IMonitorBindingStore>(_ => new JsonMonitorBindingStore(bindingsPath));
         services.AddSingleton<IMonitorProfileResolver, MonitorProfileResolver>();
+        services.AddSingleton<IStartupService, WindowsStartupService>();
         services.AddSingleton<WindowsWallpaperService>();
         services.AddSingleton<IMonitorService>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<IWallpaperApplier>(sp => sp.GetRequiredService<WindowsWallpaperService>());
@@ -31,10 +34,18 @@ public partial class App : System.Windows.Application
         services.AddSingleton<WallpaperSchedulerHostedLoop>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
+        services.AddSingleton<TrayIconService>();
 
         _services = services.BuildServiceProvider();
-        _services.GetRequiredService<MainWindow>().Show();
-        _services.GetRequiredService<WallpaperSchedulerHostedLoop>().Start();
+
+        var window = _services.GetRequiredService<MainWindow>();
+        window.Show();
+
+        var loop = _services.GetRequiredService<WallpaperSchedulerHostedLoop>();
+        loop.Start();
+
+        var startHidden = e.Args.Any(x => string.Equals(x, "--startup", StringComparison.OrdinalIgnoreCase));
+        _services.GetRequiredService<TrayIconService>().Start(startHidden);
     }
 
     protected override void OnExit(ExitEventArgs e)
