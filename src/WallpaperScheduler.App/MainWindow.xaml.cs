@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using WpfDragEventArgs = System.Windows.DragEventArgs;
 
 namespace WallpaperScheduler.App;
 
@@ -11,7 +12,7 @@ public partial class MainWindow : Window
         DataContext = viewModel;
     }
 
-    private void WallpaperDropZone_Drop(object sender, DragEventArgs e)
+    private void WallpaperDropZone_Drop(object sender, WpfDragEventArgs e)
     {
         if (DataContext is not MainViewModel viewModel) return;
         if (sender is not FrameworkElement element || element.Tag is not RuleEditorItem item) return;
@@ -21,7 +22,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void MonitorWallpaperDropZone_Drop(object sender, DragEventArgs e)
+    private void MonitorWallpaperDropZone_Drop(object sender, WpfDragEventArgs e)
     {
         if (DataContext is not MainViewModel viewModel) return;
         if (sender is not FrameworkElement element || element.Tag is not MonitorSourceEditorItem item) return;
@@ -31,11 +32,11 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private static bool TryGetDroppedPaths(DragEventArgs e, out string[] paths)
+    private static bool TryGetDroppedPaths(WpfDragEventArgs e, out string[] paths)
     {
         paths = [];
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return false;
-        paths = e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
+        if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return false;
+        paths = e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[] ?? [];
         return paths.Length > 0;
     }
 
