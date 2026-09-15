@@ -4,6 +4,9 @@ public enum WallpaperStyle { Fill, Fit, Span, Center, Stretch, Tile }
 public enum WallpaperScope { AllMonitors, PerMonitor }
 public enum WallpaperSourceKind { File, Folder }
 public enum WallpaperRotationMode { Sequential, Random }
+public enum SystemThemeMode { Light, Dark }
+public enum TemperatureApplicationMethod { Automatic, Software, DdcCi }
+public enum VisualRoutineThemeTarget { Manual, Light, Dark }
 
 public sealed class WallpaperSourceItem
 {
@@ -53,12 +56,49 @@ public sealed class SchedulerSettings
     public bool StartWithWindows { get; set; } = true;
 }
 
+public sealed class VisualComfortSettings
+{
+    public bool Enabled { get; set; }
+    public SystemThemeSettings SystemTheme { get; set; } = new();
+    public ColorTemperatureSettings Temperature { get; set; } = new();
+    public VisualRoutineSettings Routine { get; set; } = new();
+}
+
+public sealed class SystemThemeSettings
+{
+    public bool Enabled { get; set; }
+    public SystemThemeMode ManualMode { get; set; } = SystemThemeMode.Light;
+}
+
+public sealed class ColorTemperatureSettings
+{
+    public bool Enabled { get; set; }
+    public TemperatureApplicationMethod Method { get; set; } = TemperatureApplicationMethod.Automatic;
+    public int ManualKelvin { get; set; } = 6500;
+    public int TransitionMinutes { get; set; } = 30;
+    public bool ForceSoftwareWhenExternalTransformDetected { get; set; }
+    public Dictionary<Guid, TemperatureApplicationMethod> PerMonitorMethods { get; set; } = [];
+}
+
+public sealed class VisualRoutineSettings
+{
+    public bool Enabled { get; set; }
+    public Dictionary<Guid, VisualRoutineBinding> Bindings { get; set; } = [];
+}
+
+public sealed class VisualRoutineBinding
+{
+    public VisualRoutineThemeTarget Theme { get; set; } = VisualRoutineThemeTarget.Manual;
+    public int? TemperatureKelvin { get; set; }
+}
+
 public sealed class AppConfig
 {
-    public int Version { get; set; } = 2;
+    public int Version { get; set; } = 3;
     public SchedulerSettings Scheduler { get; set; } = new();
     public List<MonitorProfile> MonitorProfiles { get; set; } = [];
     public List<WallpaperRule> Rules { get; set; } = CreateDefaultCycle();
+    public VisualComfortSettings VisualComfort { get; set; } = new();
 
     private static List<WallpaperRule> CreateDefaultCycle()
     {

@@ -22,13 +22,19 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         {
             var initial = new AppConfig();
             await SaveAsync(initial, cancellationToken);
-            logger?.Info("Configuração inicial criada.");
+            logger?.Info("Configuração inicial criada no schema v3.");
             return initial;
         }
 
         try
         {
-            return await ReadConfigAsync(path, cancellationToken);
+            var (config, migrated) = await ReadConfigAsync(path, cancellationToken);
+            if (migrated)
+            {
+                await SaveAsync(config, cancellationToken);
+                logger?.Info("Configuração migrada automaticamente para o schema v3; módulos de conforto preservados/desligados quando ausentes.");
+            }
+            return config;
         }
         catch (Exception ex) when (IsRecoverableConfigException(ex))
         {
@@ -39,7 +45,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
             {
                 try
                 {
-                    var recovered = await ReadConfigAsync(BackupPath, cancellationToken);
+                    var (recovered, _) = await ReadConfigAsync(BackupPath, cancellationToken);
                     await WritePrimaryWithoutBackupAsync(recovered, cancellationToken);
                     logger?.Warning("Configuração recuperada com sucesso a partir de config.json.bak.");
                     return recovered;
@@ -59,7 +65,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
     public async Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default)
     {
-        ValidateConfig(config);
+        NormalizeAndValidate(config);
         Directory.CreateDirectory(GetConfigDirectory());
 
         try
@@ -87,7 +93,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         if (string.IsNullOrWhiteSpace(destinationPath))
             throw new ArgumentException("Destino de exportação inválido.", nameof(destinationPath));
 
-        ValidateConfig(config);
+        NormalizeAndValidate(config);
         var directory = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
         await WriteConfigFileAsync(destinationPath, config, cancellationToken);
@@ -99,23 +105,26 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
             throw new FileNotFoundException("Arquivo de configuração não encontrado.", sourcePath);
 
-        var imported = await ReadConfigAsync(sourcePath, cancellationToken);
-        logger?.Info($"Configuração importada de '{sourcePath}'.");
+        var (imported, migrated) = await ReadConfigAsync(sourcePath, cancellationToken);
+        logger?.Info(migrated
+            ? $"Configuração importada de '{sourcePath}' e migrada para o schema v3."
+            : $"Configuração importada de '{sourcePath}'.");
         return imported;
     }
 
-    private async Task<AppConfig> ReadConfigAsync(string sourcePath, CancellationToken cancellationToken)
+    private async Task<(AppConfig Config, bool Migrated)> ReadConfigAsync(string sourcePath, CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var config = await JsonSerializer.DeserializeAsync<AppConfig>(stream, _options, cancellationToken)
                      ?? throw new InvalidDataException("O JSON não contém uma configuração válida.");
-        ValidateConfig(config);
-        return config;
+        var originalVersion = config.Version;
+        NormalizeAndValidate(config);
+        return (config, originalVersion < 3);
     }
 
     private async Task WritePrimaryWithoutBackupAsync(AppConfig config, CancellationToken cancellationToken)
     {
-        ValidateConfig(config);
+        NormalizeAndValidate(config);
         Directory.CreateDirectory(GetConfigDirectory());
         await WriteConfigFileAsync(TempPath, config, cancellationToken);
         File.Move(TempPath, path, overwrite: true);
@@ -128,14 +137,24 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         await stream.FlushAsync(cancellationToken);
     }
 
-    private static void ValidateConfig(AppConfig config)
+    private static void NormalizeAndValidate(AppConfig config)
     {
-        if (config.Version is < 1 or > 2)
+        if (config.Version is < 1 or > 3)
             throw new InvalidDataException($"Versão de configuração não suportada: {config.Version}.");
 
         config.Scheduler ??= new SchedulerSettings();
         config.MonitorProfiles ??= [];
         config.Rules ??= [];
+        config.VisualComfort ??= new VisualComfortSettings();
+        config.VisualComfort.SystemTheme ??= new SystemThemeSettings();
+        config.VisualComfort.Temperature ??= new ColorTemperatureSettings();
+        config.VisualComfort.Routine ??= new VisualRoutineSettings();
+        config.VisualComfort.Temperature.PerMonitorMethods ??= [];
+        config.VisualComfort.Routine.Bindings ??= [];
+
+        config.Scheduler.HeartbeatSeconds = Math.Clamp(config.Scheduler.HeartbeatSeconds, 10, 3600);
+        config.VisualComfort.Temperature.ManualKelvin = Math.Clamp(config.VisualComfort.Temperature.ManualKelvin, 3400, 6500);
+        config.VisualComfort.Temperature.TransitionMinutes = Math.Clamp(config.VisualComfort.Temperature.TransitionMinutes, 0, 240);
 
         foreach (var rule in config.Rules)
         {
@@ -156,6 +175,20 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
                 source.Items ??= [];
             }
         }
+
+        foreach (var pair in config.VisualComfort.Routine.Bindings.ToArray())
+        {
+            if (pair.Value is null)
+            {
+                config.VisualComfort.Routine.Bindings.Remove(pair.Key);
+                continue;
+            }
+
+            if (pair.Value.TemperatureKelvin is int kelvin)
+                pair.Value.TemperatureKelvin = Math.Clamp(kelvin, 3400, 6500);
+        }
+
+        config.Version = 3;
     }
 
     private string GetConfigDirectory() =>

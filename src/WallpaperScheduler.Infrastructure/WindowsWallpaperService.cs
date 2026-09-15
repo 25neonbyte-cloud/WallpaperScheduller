@@ -36,7 +36,9 @@ public sealed class WindowsWallpaperService : IMonitorService, IWallpaperApplier
                                 $"Monitor {monitors.Count + 1}",
                                 width,
                                 height,
-                                ExtractHardwareKey(id)));
+                                ExtractHardwareKey(id),
+                                rect.Left,
+                                rect.Top));
                         }
                         catch (COMException)
                         {

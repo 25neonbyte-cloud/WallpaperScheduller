@@ -5,15 +5,23 @@ namespace WallpaperScheduler.App;
 
 public sealed class WallpaperSchedulerHostedLoop : IDisposable
 {
-    private readonly WallpaperOrchestrator _orchestrator;
+    private readonly WallpaperOrchestrator _wallpaperOrchestrator;
+    private readonly VisualComfortOrchestrator _comfortOrchestrator;
+    private readonly IConfigStore _configStore;
     private readonly IAppLogger _logger;
     private readonly DispatcherTimer _timer;
     private bool _running;
     private bool _started;
 
-    public WallpaperSchedulerHostedLoop(WallpaperOrchestrator orchestrator, IAppLogger logger)
+    public WallpaperSchedulerHostedLoop(
+        WallpaperOrchestrator wallpaperOrchestrator,
+        VisualComfortOrchestrator comfortOrchestrator,
+        IConfigStore configStore,
+        IAppLogger logger)
     {
-        _orchestrator = orchestrator;
+        _wallpaperOrchestrator = wallpaperOrchestrator;
+        _comfortOrchestrator = comfortOrchestrator;
+        _configStore = configStore;
         _logger = logger;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -66,14 +74,25 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
         try
         {
             _running = true;
+            var config = await _configStore.LoadAsync();
+            var heartbeat = Math.Clamp(config.Scheduler.HeartbeatSeconds, 10, 3600);
+            var interval = TimeSpan.FromSeconds(heartbeat);
+            if (_timer.Interval != interval) _timer.Interval = interval;
+
             if (forceReapply)
-                await _orchestrator.ReapplyCurrentAsync();
+            {
+                await _wallpaperOrchestrator.ReapplyCurrentAsync();
+                await _comfortOrchestrator.ReapplyCurrentAsync();
+            }
             else
-                await _orchestrator.ApplyCurrentAsync();
+            {
+                await _wallpaperOrchestrator.ApplyCurrentAsync();
+                await _comfortOrchestrator.ApplyCurrentAsync();
+            }
         }
         catch (Exception ex)
         {
-            _logger.Error("Falha durante a avaliação/aplicação automática de wallpaper.", ex);
+            _logger.Error("Falha durante a avaliação/aplicação automática do ambiente visual.", ex);
         }
         finally
         {
@@ -86,5 +105,6 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
         _started = false;
         _timer.Stop();
         _timer.Tick -= OnTick;
+        _comfortOrchestrator.Restore();
     }
 }

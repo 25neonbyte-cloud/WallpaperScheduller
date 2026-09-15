@@ -2,7 +2,15 @@ using WallpaperScheduler.Domain;
 
 namespace WallpaperScheduler.Application;
 
-public sealed record MonitorInfo(string Id, string Name, int Width, int Height, string? HardwareKey = null);
+public sealed record MonitorInfo(
+    string Id,
+    string Name,
+    int Width,
+    int Height,
+    string? HardwareKey = null,
+    int Left = 0,
+    int Top = 0);
+
 public sealed record WallpaperAssignment(string MonitorId, string ImagePath);
 public sealed record WallpaperState(Guid RuleId, WallpaperStyle Style, IReadOnlyList<WallpaperAssignment> Assignments);
 public sealed record ApplyResult(bool Applied, string Message, WallpaperState? State = null);
@@ -37,6 +45,42 @@ public enum SystemEventKind
 }
 
 public sealed record SystemEventNotification(SystemEventKind Kind, DateTimeOffset OccurredAt);
+
+public sealed record SystemThemeApplyResult(bool Applied, string Message, SystemThemeMode Mode);
+
+public sealed record TemperatureMonitorRequest(
+    Guid ProfileId,
+    string ProfileName,
+    MonitorInfo Monitor,
+    int Kelvin,
+    TemperatureApplicationMethod Method);
+
+public sealed record TemperatureMonitorCapability(
+    Guid ProfileId,
+    string ProfileName,
+    bool SoftwareAvailable,
+    bool HdrActive,
+    bool DdcCiAvailable,
+    IReadOnlyList<int> DdcCiTemperatures,
+    string Message);
+
+public sealed record TemperatureMonitorApplyStatus(
+    Guid ProfileId,
+    string ProfileName,
+    TemperatureApplicationMethod Method,
+    int RequestedKelvin,
+    int? AppliedKelvin,
+    bool Applied,
+    bool ConflictDetected,
+    bool HdrBlocked,
+    string Message);
+
+public sealed record ColorTemperatureApplyResult(
+    bool Applied,
+    IReadOnlyList<TemperatureMonitorApplyStatus> Monitors,
+    string Message);
+
+public sealed record VisualComfortApplyResult(bool Applied, string Message);
 
 public interface IConfigStore
 {
@@ -91,6 +135,20 @@ public interface ISystemEvents : IDisposable
 {
     event EventHandler<SystemEventNotification>? EventOccurred;
     void Start();
+}
+
+public interface ISystemThemeService : IDisposable
+{
+    SystemThemeMode GetCurrentMode();
+    SystemThemeApplyResult Apply(SystemThemeMode mode);
+    void Restore();
+}
+
+public interface IColorTemperatureService : IDisposable
+{
+    IReadOnlyList<TemperatureMonitorCapability> GetCapabilities(IReadOnlyList<MonitorResolution> resolutions);
+    ColorTemperatureApplyResult Apply(IReadOnlyList<TemperatureMonitorRequest> requests, bool forceSoftwareConflict);
+    void Restore();
 }
 
 public interface IClock
