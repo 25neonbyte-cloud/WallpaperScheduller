@@ -83,7 +83,7 @@ public sealed class VisualComfortOrchestrator(
         if (comfort.Temperature.Enabled)
         {
             var targetKelvin = ResolveTemperatureTarget(config, comfort, localTime);
-            logger.Info($"Temperatura alvo pela curva: hora={localTime:HH\:mm}; dia={Math.Clamp(comfort.Temperature.DayKelvin, 3400, 6500)}K; noite={Math.Clamp(comfort.Temperature.NightKelvin, 3400, 6500)}K; alvo={targetKelvin}K.");
+            logger.Info($"Temperatura alvo pela curva: hora={localTime.ToString("HH:mm")}; dia={Math.Clamp(comfort.Temperature.DayKelvin, 3400, 6500)}K; noite={Math.Clamp(comfort.Temperature.NightKelvin, 3400, 6500)}K; alvo={targetKelvin}K.");
 
             // A curva é função do relógio, não do instante em que o processo iniciou.
             // Cada heartbeat apenas amostra novamente a posição atual da onda.
