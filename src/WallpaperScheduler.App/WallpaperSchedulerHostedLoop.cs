@@ -9,6 +9,7 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
     private readonly VisualComfortOrchestrator _comfortOrchestrator;
     private readonly IConfigStore _configStore;
     private readonly IAppLogger _logger;
+    private readonly AppThemeManager _appThemeManager;
     private readonly DispatcherTimer _timer;
     private bool _running;
     private bool _started;
@@ -17,12 +18,14 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
         WallpaperOrchestrator wallpaperOrchestrator,
         VisualComfortOrchestrator comfortOrchestrator,
         IConfigStore configStore,
-        IAppLogger logger)
+        IAppLogger logger,
+        AppThemeManager appThemeManager)
     {
         _wallpaperOrchestrator = wallpaperOrchestrator;
         _comfortOrchestrator = comfortOrchestrator;
         _configStore = configStore;
         _logger = logger;
+        _appThemeManager = appThemeManager;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(30)
@@ -89,6 +92,10 @@ public sealed class WallpaperSchedulerHostedLoop : IDisposable
                 await _wallpaperOrchestrator.ApplyCurrentAsync();
                 await _comfortOrchestrator.ApplyCurrentAsync();
             }
+
+            // Quando a interface segue o Windows, resolva somente depois do módulo de
+            // tema do sistema, para que ambos mudem no mesmo ciclo de avaliação.
+            _appThemeManager.Apply(config.Ui.Theme);
         }
         catch (Exception ex)
         {
