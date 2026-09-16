@@ -1,8 +1,10 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using WallpaperScheduler.Application;
 using WallpaperScheduler.Domain;
+using WpfBorder = System.Windows.Controls.Border;
+using WpfButton = System.Windows.Controls.Button;
+using WpfControl = System.Windows.Controls.Control;
 
 namespace WallpaperScheduler.App;
 
@@ -61,7 +63,7 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
     // uma única vez, para que alternâncias posteriores não exijam recriar a janela.
     private static void AdoptThemeResources(DependencyObject root)
     {
-        if (root is Border border)
+        if (root is WpfBorder border)
         {
             if (TryColor(border.Background, out var background))
             {
@@ -72,7 +74,7 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
                     _ => null
                 };
                 if (key is not null)
-                    border.SetResourceReference(Border.BackgroundProperty, key);
+                    border.SetResourceReference(WpfBorder.BackgroundProperty, key);
             }
 
             if (TryColor(border.BorderBrush, out var borderColor))
@@ -87,12 +89,12 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
                     _ => null
                 };
                 if (key is not null)
-                    border.SetResourceReference(Border.BorderBrushProperty, key);
+                    border.SetResourceReference(WpfBorder.BorderBrushProperty, key);
             }
         }
-        else if (root is Button button && TryColor(button.BorderBrush, out var buttonBorder) && buttonBorder == "#FFF6C9CC")
+        else if (root is WpfButton button && TryColor(button.BorderBrush, out var buttonBorder) && buttonBorder == "#FFF6C9CC")
         {
-            button.SetResourceReference(Control.BorderBrushProperty, "DangerBorderBrush");
+            button.SetResourceReference(WpfControl.BorderBrushProperty, "DangerBorderBrush");
         }
 
         var count = VisualTreeHelper.GetChildrenCount(root);
