@@ -54,9 +54,9 @@ public sealed class VisualComfortOrchestrator(
         var now = clock.Now;
         var localTime = TimeOnly.FromDateTime(now.LocalDateTime);
         var evaluation = ruleEngine.Evaluate(config.Rules, now);
-        VisualRoutineBinding? binding = null;
+        VisualRoutineBinding? currentBinding = null;
         if (comfort.Routine.Enabled && evaluation.Winner is { } winner)
-            comfort.Routine.Bindings.TryGetValue(winner.Id, out binding);
+            comfort.Routine.Bindings.TryGetValue(winner.Id, out currentBinding);
 
         var applied = false;
         var messages = new List<string>();
@@ -64,7 +64,7 @@ public sealed class VisualComfortOrchestrator(
         if (comfort.SystemTheme.Enabled)
         {
             var baseTheme = ResolveBaseTheme(comfort.SystemTheme, localTime);
-            var desiredTheme = ResolveTheme(baseTheme, binding);
+            var desiredTheme = ResolveTheme(baseTheme, currentBinding);
             if (forceReapply || _lastTheme != desiredTheme)
             {
                 var themeResult = systemThemeService.Apply(desiredTheme);
@@ -82,19 +82,11 @@ public sealed class VisualComfortOrchestrator(
 
         if (comfort.Temperature.Enabled)
         {
-            var baseTargetKelvin = ResolveBaseTemperature(comfort.Temperature, localTime);
-            var routineTargetKelvin = binding?.TemperatureKelvin;
-            var targetKelvin = Math.Clamp(routineTargetKelvin ?? baseTargetKelvin, 3400, 6500);
-            var clockDriven = comfort.Temperature.ControlMode == VisualControlMode.Scheduled && routineTargetKelvin is null;
-            var effectiveKelvin = forceReapply || clockDriven
-                ? targetKelvin
-                : StepTowardTarget(
-                    _lastAppliedKelvin,
-                    targetKelvin,
-                    comfort.Temperature.TransitionMinutes,
-                    config.Scheduler.HeartbeatSeconds);
+            var targetKelvin = ResolveTemperatureTarget(config, comfort, localTime);
 
-            if (forceReapply || _lastAppliedKelvin != effectiveKelvin)
+            // A curva é função do relógio, não do instante em que o processo iniciou.
+            // Cada heartbeat apenas amostra novamente a posição atual da onda.
+            if (forceReapply || _lastAppliedKelvin != targetKelvin)
             {
                 var monitors = monitorService.GetActiveMonitors();
                 var resolutions = await monitorProfileResolver.ResolveAsync(config, monitors, cancellationToken);
@@ -109,7 +101,7 @@ public sealed class VisualComfortOrchestrator(
                         resolution.ProfileId,
                         resolution.ProfileName,
                         resolution.Monitor!,
-                        effectiveKelvin,
+                        targetKelvin,
                         method));
                 }
 
@@ -120,7 +112,7 @@ public sealed class VisualComfortOrchestrator(
                 messages.Add(temperatureResult.Message);
 
                 if (temperatureResult.Applied)
-                    _lastAppliedKelvin = effectiveKelvin;
+                    _lastAppliedKelvin = targetKelvin;
 
                 foreach (var status in temperatureResult.Monitors.Where(x => !x.Applied))
                     logger.Warning($"Temperatura [{status.ProfileName}]: {status.Message}");
@@ -159,35 +151,120 @@ public sealed class VisualComfortOrchestrator(
             _ => baseTheme
         };
 
-    private static int ResolveBaseTemperature(ColorTemperatureSettings settings, TimeOnly localTime)
+    private static int ResolveTemperatureTarget(AppConfig config, VisualComfortSettings comfort, TimeOnly localTime)
     {
-        if (settings.ControlMode != VisualControlMode.Scheduled || settings.DayStart == settings.NightStart)
-            return settings.ManualKelvin;
+        var settings = comfort.Temperature;
+        if (settings.ControlMode == VisualControlMode.Manual)
+            return Math.Clamp(settings.ManualKelvin, 3400, 6500);
+
+        var enabledRules = config.Rules.Where(x => x.Enabled).ToList();
+        var explicitBindings = comfort.Routine.Enabled
+            ? enabledRules
+                .Where(x => comfort.Routine.Bindings.TryGetValue(x.Id, out var binding) && binding.TemperatureKelvin is not null)
+                .Select(x => new
+                {
+                    Rule = x,
+                    Kelvin = Math.Clamp(comfort.Routine.Bindings[x.Id].TemperatureKelvin!.Value, 3400, 6500)
+                })
+                .ToList()
+            : [];
+
+        // Um único período cobrindo toda a rotina continua podendo funcionar como
+        // temperatura fixa explícita. Com vários períodos, os valores explícitos
+        // passam a ser pontos da curva e não degraus instantâneos.
+        if (enabledRules.Count == 1 && explicitBindings.Count == 1)
+            return explicitBindings[0].Kelvin;
 
         var dayKelvin = Math.Clamp(settings.DayKelvin, 3400, 6500);
         var nightKelvin = Math.Clamp(settings.NightKelvin, 3400, 6500);
-        var transition = Math.Max(0, settings.TransitionMinutes);
-        if (transition == 0)
-            return IsWithin(localTime, settings.DayStart, settings.NightStart) ? dayKelvin : nightKelvin;
+        var phases = ResolvePhaseStarts(enabledRules);
 
-        var dayStart = ToMinutes(settings.DayStart);
-        var nightStart = ToMinutes(settings.NightStart);
-        var current = ToMinutes(localTime);
-        var daySpan = ForwardMinutes(dayStart, nightStart);
-        var nightSpan = ForwardMinutes(nightStart, dayStart);
-        var safeTransition = Math.Min(transition, (int)Math.Floor(Math.Min(daySpan, nightSpan)));
-        if (safeTransition <= 0)
-            return IsWithin(localTime, settings.DayStart, settings.NightStart) ? dayKelvin : nightKelvin;
+        var anchors = new SortedDictionary<int, int>
+        {
+            [Minutes(phases.Madrugada)] = nightKelvin,
+            [Minutes(phases.Manha)] = nightKelvin,
+            [Minutes(phases.Dia)] = dayKelvin,
+            [Minutes(phases.Tarde)] = dayKelvin,
+            [Minutes(phases.Noite)] = nightKelvin
+        };
 
-        var sinceDayStart = ForwardMinutes(dayStart, current);
-        if (sinceDayStart < safeTransition)
-            return InterpolateKelvin(nightKelvin, dayKelvin, sinceDayStart / safeTransition);
+        foreach (var point in explicitBindings)
+            anchors[Minutes(point.Rule.Start)] = point.Kelvin;
 
-        var sinceNightStart = ForwardMinutes(nightStart, current);
-        if (sinceNightStart < safeTransition)
-            return InterpolateKelvin(dayKelvin, nightKelvin, sinceNightStart / safeTransition);
+        return EvaluateCircularCurve(anchors, localTime);
+    }
 
-        return IsWithin(localTime, settings.DayStart, settings.NightStart) ? dayKelvin : nightKelvin;
+    private static PhaseStarts ResolvePhaseStarts(IReadOnlyCollection<WallpaperRule> rules)
+    {
+        static bool Has(string source, params string[] values) =>
+            values.Any(value => source.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        TimeOnly? Find(params string[] values) => rules
+            .Where(x => Has(x.Name, values))
+            .OrderBy(x => x.Start)
+            .Select(x => (TimeOnly?)x.Start)
+            .FirstOrDefault();
+
+        var madrugada = Find("madrugada", "meia-noite");
+        var manha = Find("manhã", "manha", "nascer");
+        var dia = rules
+            .Where(x => Has(x.Name, "dia") && !Has(x.Name, "madrugada"))
+            .OrderBy(x => x.Start)
+            .Select(x => (TimeOnly?)x.Start)
+            .FirstOrDefault();
+        var tarde = Find("tarde", "entardecer", "pôr", "por do sol");
+        var noite = Find("noite");
+
+        if (madrugada is not null && manha is not null && dia is not null && tarde is not null && noite is not null)
+            return new(madrugada.Value, manha.Value, dia.Value, tarde.Value, noite.Value);
+
+        var starts = rules
+            .Select(x => x.Start)
+            .Distinct()
+            .OrderBy(x => x)
+            .Take(5)
+            .ToList();
+
+        if (starts.Count == 5)
+            return new(starts[0], starts[1], starts[2], starts[3], starts[4]);
+
+        // Fallback de UX somente quando não existem cinco períodos utilizáveis.
+        return new(
+            new TimeOnly(0, 0),
+            new TimeOnly(6, 0),
+            new TimeOnly(9, 0),
+            new TimeOnly(17, 0),
+            new TimeOnly(20, 0));
+    }
+
+    private static int EvaluateCircularCurve(SortedDictionary<int, int> anchors, TimeOnly localTime)
+    {
+        var points = anchors.ToArray();
+        if (points.Length == 0) return 6500;
+        if (points.Length == 1) return points[0].Value;
+
+        var current = Minutes(localTime);
+        for (var i = 0; i < points.Length - 1; i++)
+        {
+            var left = points[i];
+            var right = points[i + 1];
+            if (current >= left.Key && current < right.Key)
+                return SmoothInterpolate(left.Value, right.Value, current - left.Key, right.Key - left.Key);
+        }
+
+        var last = points[^1];
+        var first = points[0];
+        var wrappedCurrent = current < first.Key ? current + 1440 : current;
+        var wrappedFirst = first.Key + 1440;
+        return SmoothInterpolate(last.Value, first.Value, wrappedCurrent - last.Key, wrappedFirst - last.Key);
+    }
+
+    private static int SmoothInterpolate(int from, int to, double elapsed, double duration)
+    {
+        if (duration <= 0 || from == to) return to;
+        var progress = Math.Clamp(elapsed / duration, 0.0, 1.0);
+        var smooth = progress * progress * (3.0 - (2.0 * progress));
+        return (int)Math.Round(from + ((to - from) * smooth), MidpointRounding.AwayFromZero);
     }
 
     private static bool IsWithin(TimeOnly value, TimeOnly start, TimeOnly end)
@@ -197,30 +274,7 @@ public sealed class VisualComfortOrchestrator(
         return value >= start || value < end;
     }
 
-    private static double ToMinutes(TimeOnly value) =>
-        (value.Hour * 60.0) + value.Minute + (value.Second / 60.0) + (value.Millisecond / 60000.0);
+    private static int Minutes(TimeOnly value) => (value.Hour * 60) + value.Minute;
 
-    private static double ForwardMinutes(double from, double to)
-    {
-        var value = to - from;
-        return value < 0 ? value + 1440.0 : value;
-    }
-
-    private static int InterpolateKelvin(int from, int to, double progress)
-    {
-        progress = Math.Clamp(progress, 0.0, 1.0);
-        return (int)Math.Round(from + ((to - from) * progress), MidpointRounding.AwayFromZero);
-    }
-
-    private static int StepTowardTarget(int? current, int target, int transitionMinutes, int heartbeatSeconds)
-    {
-        if (current is null || transitionMinutes <= 0) return target;
-        var value = current.Value;
-        if (value == target) return target;
-
-        var ticks = Math.Max(1.0, transitionMinutes * 60.0 / Math.Max(10, heartbeatSeconds));
-        var maxRange = 6500 - 3400;
-        var step = Math.Max(25, (int)Math.Ceiling(maxRange / ticks));
-        return value < target ? Math.Min(target, value + step) : Math.Max(target, value - step);
-    }
+    private sealed record PhaseStarts(TimeOnly Madrugada, TimeOnly Manha, TimeOnly Dia, TimeOnly Tarde, TimeOnly Noite);
 }
