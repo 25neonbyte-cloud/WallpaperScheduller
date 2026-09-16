@@ -83,14 +83,21 @@ public sealed class SystemThemeSettings
 public sealed class ColorTemperatureSettings
 {
     public bool Enabled { get; set; }
-    public VisualControlMode ControlMode { get; set; } = VisualControlMode.Manual;
+
+    // O modo principal é a curva contínua de 24 horas. Manual permanece no schema
+    // para compatibilidade e futuro override temporário, mas não é o fluxo padrão.
+    public VisualControlMode ControlMode { get; set; } = VisualControlMode.Scheduled;
     public TemperatureApplicationMethod Method { get; set; } = TemperatureApplicationMethod.Automatic;
     public int ManualKelvin { get; set; } = 6500;
     public int DayKelvin { get; set; } = 6500;
     public int NightKelvin { get; set; } = 4200;
+
+    // Mantidos para compatibilidade com schema v4. A curva v5 usa os períodos do dia,
+    // portanto esses horários e a antiga janela de transição não dirigem o automático.
     public TimeOnly DayStart { get; set; } = new(7, 0);
     public TimeOnly NightStart { get; set; } = new(19, 0);
     public int TransitionMinutes { get; set; } = 30;
+
     public bool ForceSoftwareWhenExternalTransformDetected { get; set; }
     public Dictionary<Guid, TemperatureApplicationMethod> PerMonitorMethods { get; set; } = [];
 }
@@ -109,7 +116,7 @@ public sealed class VisualRoutineBinding
 
 public sealed class AppConfig
 {
-    public int Version { get; set; } = 4;
+    public int Version { get; set; } = 5;
     public SchedulerSettings Scheduler { get; set; } = new();
     public UiSettings Ui { get; set; } = new();
     public List<MonitorProfile> MonitorProfiles { get; set; } = [];
@@ -121,11 +128,11 @@ public sealed class AppConfig
         var everyDay = new HashSet<DayOfWeek>(Enum.GetValues<DayOfWeek>());
         return
         [
-            Period("Após meia-noite", 0, 0, 5, 30, 0, everyDay),
-            Period("Nascer do sol", 5, 30, 10, 0, 10, everyDay),
-            Period("Dia claro", 10, 0, 16, 0, 20, everyDay),
-            Period("Pôr do sol", 16, 0, 18, 45, 30, everyDay),
-            Period("Noite", 18, 45, 0, 0, 40, everyDay)
+            Period("Madrugada", 0, 0, 6, 0, 0, everyDay),
+            Period("Manhã", 6, 0, 9, 0, 10, everyDay),
+            Period("Dia", 9, 0, 17, 0, 20, everyDay),
+            Period("Tarde", 17, 0, 20, 0, 30, everyDay),
+            Period("Noite", 20, 0, 0, 0, 40, everyDay)
         ];
     }
 
