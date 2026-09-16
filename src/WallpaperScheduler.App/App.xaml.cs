@@ -46,7 +46,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IMonitorService>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<IWallpaperApplier>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<ISystemThemeService, WindowsSystemThemeService>();
-        services.AddSingleton<IColorTemperatureService, WindowsColorTemperatureService>();
+        services.AddSingleton<IColorTemperatureService, WindowsFullscreenColorTemperatureService>();
         services.AddSingleton<AppThemeManager>();
         services.AddSingleton<WallpaperOrchestrator>();
         services.AddSingleton<VisualComfortOrchestrator>();
