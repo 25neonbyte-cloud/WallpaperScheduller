@@ -47,6 +47,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IWallpaperApplier>(sp => sp.GetRequiredService<WindowsWallpaperService>());
         services.AddSingleton<ISystemThemeService, WindowsSystemThemeService>();
         services.AddSingleton<IColorTemperatureService, WindowsColorTemperatureService>();
+        services.AddSingleton<AppThemeManager>();
         services.AddSingleton<WallpaperOrchestrator>();
         services.AddSingleton<VisualComfortOrchestrator>();
         services.AddSingleton<WallpaperSchedulerHostedLoop>();
