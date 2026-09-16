@@ -31,8 +31,9 @@ public sealed class WindowsSystemThemeService(IAppLogger logger) : ISystemThemeS
     {
         lock (_gate)
         {
-            if (_lastApplied == mode)
-                return new(false, $"Tema {Describe(mode)} já aplicado.", mode);
+            var light = mode == SystemThemeMode.Light ? 1 : 0;
+            if (_lastApplied == mode && RegistryMatches(light))
+                return new(false, $"Tema {Describe(mode)} já confirmado no Windows.", mode);
 
             using var key = Registry.CurrentUser.CreateSubKey(PersonalizePath, writable: true)
                             ?? throw new InvalidOperationException("Não foi possível abrir as preferências de tema do Windows.");
@@ -44,14 +45,22 @@ public sealed class WindowsSystemThemeService(IAppLogger logger) : ISystemThemeS
                 _captured = true;
             }
 
-            var light = mode == SystemThemeMode.Light ? 1 : 0;
             key.SetValue(AppsUseLightTheme, light, RegistryValueKind.DWord);
             key.SetValue(SystemUsesLightTheme, light, RegistryValueKind.DWord);
+            key.Flush();
             BroadcastThemeChange();
 
+            var appsConfirmed = Convert.ToInt32(key.GetValue(AppsUseLightTheme, 1)) == light;
+            var systemConfirmed = Convert.ToInt32(key.GetValue(SystemUsesLightTheme, 1)) == light;
+            if (!appsConfirmed || !systemConfirmed)
+            {
+                logger.Warning($"O Windows não confirmou integralmente a gravação do tema {Describe(mode)}.");
+                return new(false, $"Falha ao confirmar o tema {Describe(mode)} no Windows.", GetCurrentMode());
+            }
+
             _lastApplied = mode;
-            logger.Info($"Tema do sistema aplicado: {Describe(mode)}.");
-            return new(true, $"Tema {Describe(mode)} aplicado.", mode);
+            logger.Info($"Tema do sistema aplicado e confirmado no registro do Windows: {Describe(mode)}.");
+            return new(true, $"Tema {Describe(mode)} aplicado e confirmado no Windows.", mode);
         }
     }
 
@@ -68,6 +77,7 @@ public sealed class WindowsSystemThemeService(IAppLogger logger) : ISystemThemeS
 
                 RestoreValue(key, AppsUseLightTheme, _originalApps);
                 RestoreValue(key, SystemUsesLightTheme, _originalSystem);
+                key.Flush();
                 BroadcastThemeChange();
                 logger.Info("Tema do sistema restaurado ao estado anterior ao Wallpaper Scheduler.");
             }
@@ -86,6 +96,14 @@ public sealed class WindowsSystemThemeService(IAppLogger logger) : ISystemThemeS
     }
 
     public void Dispose() => Restore();
+
+    private static bool RegistryMatches(int light)
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(PersonalizePath, writable: false);
+        if (key is null) return false;
+        return Convert.ToInt32(key.GetValue(AppsUseLightTheme, 1)) == light &&
+               Convert.ToInt32(key.GetValue(SystemUsesLightTheme, 1)) == light;
+    }
 
     private static void RestoreValue(RegistryKey key, string name, object? value)
     {
@@ -113,7 +131,7 @@ public sealed class WindowsSystemThemeService(IAppLogger logger) : ISystemThemeS
             IntPtr.Zero,
             "ImmersiveColorSet",
             SmtoAbortIfHung,
-            250,
+            500,
             out _);
     }
 
