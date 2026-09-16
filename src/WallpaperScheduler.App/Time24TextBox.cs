@@ -18,6 +18,11 @@ public sealed class Time24TextBox : WpfTextBox
 
     public Time24TextBox()
     {
+        // Estilos implícitos de TextBox não são herdados automaticamente por um
+        // controle derivado. Sem esta referência, o Windows fornece o template
+        // nativo claro e o campo fica branco no tema escuro.
+        SetResourceReference(StyleProperty, typeof(WpfTextBox));
+
         MaxLength = 5;
         TextAlignment = TextAlignment.Center;
         VerticalContentAlignment = VerticalAlignment.Center;
