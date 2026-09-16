@@ -19,27 +19,17 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
 {
     private ApplicationThemeMode? _lastPreference;
     private SystemThemeMode? _lastResolved;
+    private bool _loadedClassHandlerRegistered;
 
     public void RegisterWindow(Window window)
     {
+        RegisterLateLoadedControlHandler();
+
         void ApplyToWindow()
         {
             AdoptThemeResources(window);
             Apply(_lastPreference ?? ApplicationThemeMode.FollowSystem, force: true);
         }
-
-        // DataTemplates do scheduler são materializados depois do carregamento da
-        // configuração. O adaptador antigo percorria a árvore somente uma vez e,
-        // por isso, cards criados depois continuavam literalmente brancos no tema
-        // escuro. Reaplicamos apenas no subtree que acabou de ser carregado.
-        window.AddHandler(
-            FrameworkElement.LoadedEvent,
-            new RoutedEventHandler((_, args) =>
-            {
-                if (args.OriginalSource is DependencyObject loaded)
-                    AdoptThemeResources(loaded);
-            }),
-            handledEventsToo: true);
 
         if (window.IsLoaded)
             ApplyToWindow();
@@ -59,7 +49,13 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
         };
 
         if (!force && _lastPreference == preference && _lastResolved == resolved)
+        {
+            // Ainda percorremos a árvore porque ItemsControl/DataTemplate podem ter
+            // sido materializados após a última troca de tema.
+            foreach (Window window in System.Windows.Application.Current.Windows)
+                AdoptThemeResources(window);
             return;
+        }
 
         void ApplyCore()
         {
@@ -78,12 +74,36 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
             dispatcher.Invoke(ApplyCore);
     }
 
+    private void RegisterLateLoadedControlHandler()
+    {
+        if (_loadedClassHandlerRegistered) return;
+        _loadedClassHandlerRegistered = true;
+
+        EventManager.RegisterClassHandler(
+            typeof(FrameworkElement),
+            FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((sender, _) =>
+            {
+                if (sender is DependencyObject loaded)
+                    AdoptThemeResourceOnElement(loaded);
+            }),
+            handledEventsToo: true);
+    }
+
     // A maior parte da interface usa DynamicResource. Este adaptador cobre os
-    // poucos brushes literais herdados do layout anterior, inclusive elementos
-    // materializados depois do carregamento inicial.
+    // brushes literais herdados do layout anterior. O class handler acima garante
+    // que elementos criados posteriormente por DataTemplates também sejam tratados.
     private static void AdoptThemeResources(DependencyObject root)
     {
-        if (root is WpfBorder border)
+        AdoptThemeResourceOnElement(root);
+        var count = WpfVisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+            AdoptThemeResources(WpfVisualTreeHelper.GetChild(root, i));
+    }
+
+    private static void AdoptThemeResourceOnElement(DependencyObject element)
+    {
+        if (element is WpfBorder border)
         {
             if (TryColor(border.Background, out var background))
             {
@@ -112,14 +132,10 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
                     border.SetResourceReference(WpfBorder.BorderBrushProperty, key);
             }
         }
-        else if (root is WpfButton button && TryColor(button.BorderBrush, out var buttonBorder) && buttonBorder == "#FFF6C9CC")
+        else if (element is WpfButton button && TryColor(button.BorderBrush, out var buttonBorder) && buttonBorder == "#FFF6C9CC")
         {
             button.SetResourceReference(WpfControl.BorderBrushProperty, "DangerBorderBrush");
         }
-
-        var count = WpfVisualTreeHelper.GetChildrenCount(root);
-        for (var i = 0; i < count; i++)
-            AdoptThemeResources(WpfVisualTreeHelper.GetChild(root, i));
     }
 
     private static bool TryColor(WpfBrush? brush, out string value)
