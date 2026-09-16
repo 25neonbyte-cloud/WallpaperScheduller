@@ -1,12 +1,16 @@
 using System.Windows;
-using System.Windows.Media;
 using WallpaperScheduler.Application;
 using WallpaperScheduler.Domain;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfButton = System.Windows.Controls.Button;
 using WpfControl = System.Windows.Controls.Control;
+using WpfBrush = System.Windows.Media.Brush;
 using WpfColor = System.Windows.Media.Color;
 using WpfColorConverter = System.Windows.Media.ColorConverter;
+using WpfGradientStop = System.Windows.Media.GradientStop;
+using WpfLinearGradientBrush = System.Windows.Media.LinearGradientBrush;
+using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
+using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
 using WpfPoint = System.Windows.Point;
 
 namespace WallpaperScheduler.App;
@@ -100,14 +104,14 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
             button.SetResourceReference(WpfControl.BorderBrushProperty, "DangerBorderBrush");
         }
 
-        var count = VisualTreeHelper.GetChildrenCount(root);
+        var count = WpfVisualTreeHelper.GetChildrenCount(root);
         for (var i = 0; i < count; i++)
-            AdoptThemeResources(VisualTreeHelper.GetChild(root, i));
+            AdoptThemeResources(WpfVisualTreeHelper.GetChild(root, i));
     }
 
-    private static bool TryColor(Brush? brush, out string value)
+    private static bool TryColor(WpfBrush? brush, out string value)
     {
-        if (brush is SolidColorBrush solid)
+        if (brush is WpfSolidColorBrush solid)
         {
             value = solid.Color.ToString().ToUpperInvariant();
             return true;
@@ -172,18 +176,18 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
         resources["ToggleThumbBrush"] = Solid("#FFFFFF");
     }
 
-    private static SolidColorBrush Solid(string color) =>
+    private static WpfSolidColorBrush Solid(string color) =>
         new((WpfColor)WpfColorConverter.ConvertFromString(color)!);
 
-    private static LinearGradientBrush Gradient(string start, string end, bool horizontal)
+    private static WpfLinearGradientBrush Gradient(string start, string end, bool horizontal)
     {
-        var brush = new LinearGradientBrush
+        var brush = new WpfLinearGradientBrush
         {
             StartPoint = new WpfPoint(0, 0),
             EndPoint = horizontal ? new WpfPoint(1, 1) : new WpfPoint(0, 1)
         };
-        brush.GradientStops.Add(new GradientStop((WpfColor)WpfColorConverter.ConvertFromString(start)!, 0));
-        brush.GradientStops.Add(new GradientStop((WpfColor)WpfColorConverter.ConvertFromString(end)!, 1));
+        brush.GradientStops.Add(new WpfGradientStop((WpfColor)WpfColorConverter.ConvertFromString(start)!, 0));
+        brush.GradientStops.Add(new WpfGradientStop((WpfColor)WpfColorConverter.ConvertFromString(end)!, 1));
         return brush;
     }
 }
