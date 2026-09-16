@@ -22,7 +22,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         {
             var initial = new AppConfig();
             await SaveAsync(initial, cancellationToken);
-            logger?.Info("Configuração inicial criada no schema v4.");
+            logger?.Info("Configuração inicial criada no schema v5.");
             return initial;
         }
 
@@ -32,7 +32,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
             if (migrated)
             {
                 await SaveAsync(config, cancellationToken);
-                logger?.Info("Configuração migrada automaticamente para o schema v4; horários e tema do aplicativo receberam padrões seguros quando ausentes.");
+                logger?.Info("Configuração migrada automaticamente para o schema v5; regras e períodos existentes foram preservados e a temperatura automática passou a usar curva contínua.");
             }
             return config;
         }
@@ -107,7 +107,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
         var (imported, migrated) = await ReadConfigAsync(sourcePath, cancellationToken);
         logger?.Info(migrated
-            ? $"Configuração importada de '{sourcePath}' e migrada para o schema v4."
+            ? $"Configuração importada de '{sourcePath}' e migrada para o schema v5."
             : $"Configuração importada de '{sourcePath}'.");
         return imported;
     }
@@ -118,8 +118,19 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         var config = await JsonSerializer.DeserializeAsync<AppConfig>(stream, _options, cancellationToken)
                      ?? throw new InvalidDataException("O JSON não contém uma configuração válida.");
         var originalVersion = config.Version;
+
+        // v4 introduziu um seletor Manual/Agendado para temperatura que não representa
+        // o comportamento de produto aprovado. A migração v5 corrige apenas esse modo;
+        // não cria, remove, renomeia nem reordena regras/períodos já salvos.
+        if (originalVersion < 5)
+        {
+            config.VisualComfort ??= new VisualComfortSettings();
+            config.VisualComfort.Temperature ??= new ColorTemperatureSettings();
+            config.VisualComfort.Temperature.ControlMode = VisualControlMode.Scheduled;
+        }
+
         NormalizeAndValidate(config);
-        return (config, originalVersion < 4);
+        return (config, originalVersion < 5);
     }
 
     private async Task WritePrimaryWithoutBackupAsync(AppConfig config, CancellationToken cancellationToken)
@@ -139,7 +150,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
     private static void NormalizeAndValidate(AppConfig config)
     {
-        if (config.Version is < 1 or > 4)
+        if (config.Version is < 1 or > 5)
             throw new InvalidDataException($"Versão de configuração não suportada: {config.Version}.");
 
         config.Scheduler ??= new SchedulerSettings();
@@ -191,7 +202,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
                 pair.Value.TemperatureKelvin = Math.Clamp(kelvin, 3400, 6500);
         }
 
-        config.Version = 4;
+        config.Version = 5;
     }
 
     private string GetConfigDirectory() =>
