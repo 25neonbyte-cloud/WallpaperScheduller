@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace WallpaperScheduler.App;
 
@@ -28,7 +29,7 @@ internal static class RenderingBootstrap
         // O registro na classe TextBox também cobre controles derivados, como
         // Time24TextBox, sem exigir mudanças individuais de geometria no XAML.
         EventManager.RegisterClassHandler(
-            typeof(TextBox),
+            typeof(WpfTextBox),
             FrameworkElement.LoadedEvent,
             new RoutedEventHandler(OnTextBoxLoaded));
     }
@@ -70,7 +71,7 @@ internal static class RenderingBootstrap
 
     private static void OnTextBoxLoaded(object sender, RoutedEventArgs e)
     {
-        if (sender is not TextBox textBox) return;
+        if (sender is not WpfTextBox textBox) return;
 
         // O template global transforma Padding em margem do PART_ContentHost.
         // Padding vertical reduz a viewport real em campos de altura fixa e pode
