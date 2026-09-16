@@ -5,6 +5,9 @@ using WallpaperScheduler.Domain;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfButton = System.Windows.Controls.Button;
 using WpfControl = System.Windows.Controls.Control;
+using WpfColor = System.Windows.Media.Color;
+using WpfColorConverter = System.Windows.Media.ColorConverter;
+using WpfPoint = System.Windows.Point;
 
 namespace WallpaperScheduler.App;
 
@@ -170,17 +173,17 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
     }
 
     private static SolidColorBrush Solid(string color) =>
-        new((Color)ColorConverter.ConvertFromString(color)!);
+        new((WpfColor)WpfColorConverter.ConvertFromString(color)!);
 
     private static LinearGradientBrush Gradient(string start, string end, bool horizontal)
     {
         var brush = new LinearGradientBrush
         {
-            StartPoint = new Point(0, 0),
-            EndPoint = horizontal ? new Point(1, 1) : new Point(0, 1)
+            StartPoint = new WpfPoint(0, 0),
+            EndPoint = horizontal ? new WpfPoint(1, 1) : new WpfPoint(0, 1)
         };
-        brush.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(start)!, 0));
-        brush.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(end)!, 1));
+        brush.GradientStops.Add(new GradientStop((WpfColor)WpfColorConverter.ConvertFromString(start)!, 0));
+        brush.GradientStops.Add(new GradientStop((WpfColor)WpfColorConverter.ConvertFromString(end)!, 1));
         return brush;
     }
 }
