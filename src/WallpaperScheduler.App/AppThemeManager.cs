@@ -28,6 +28,19 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
             Apply(_lastPreference ?? ApplicationThemeMode.FollowSystem, force: true);
         }
 
+        // DataTemplates do scheduler são materializados depois do carregamento da
+        // configuração. O adaptador antigo percorria a árvore somente uma vez e,
+        // por isso, cards criados depois continuavam literalmente brancos no tema
+        // escuro. Reaplicamos apenas no subtree que acabou de ser carregado.
+        window.AddHandler(
+            FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((_, args) =>
+            {
+                if (args.OriginalSource is DependencyObject loaded)
+                    AdoptThemeResources(loaded);
+            }),
+            handledEventsToo: true);
+
         if (window.IsLoaded)
             ApplyToWindow();
         else
@@ -65,9 +78,9 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
             dispatcher.Invoke(ApplyCore);
     }
 
-    // A maior parte da interface já usa DynamicResource. Este adaptador converte os
-    // poucos brushes literais herdados do layout anterior em referências dinâmicas
-    // uma única vez, para que alternâncias posteriores não exijam recriar a janela.
+    // A maior parte da interface usa DynamicResource. Este adaptador cobre os
+    // poucos brushes literais herdados do layout anterior, inclusive elementos
+    // materializados depois do carregamento inicial.
     private static void AdoptThemeResources(DependencyObject root)
     {
         if (root is WpfBorder border)
@@ -131,48 +144,48 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
         resources["SurfaceMutedBrush"] = Solid(dark ? "#111821" : "#F8FAFD");
         resources["SurfaceHoverBrush"] = Solid(dark ? "#1B2633" : "#F2F6FC");
         resources["TextPrimaryBrush"] = Solid(dark ? "#E9F0FA" : "#0D1B3A");
-        resources["TextSecondaryBrush"] = Solid(dark ? "#A7B4C7" : "#60708D");
-        resources["TextMutedBrush"] = Solid(dark ? "#74849A" : "#8794AA");
-        resources["BorderBrush"] = Solid(dark ? "#2A3748" : "#DDE6F2");
-        resources["BorderStrongBrush"] = Solid(dark ? "#394A60" : "#C9D6E8");
+        resources["TextSecondaryBrush"] = Solid(dark ? "#B8C4D5" : "#60708D");
+        resources["TextMutedBrush"] = Solid(dark ? "#91A0B5" : "#8794AA");
+        resources["BorderBrush"] = Solid(dark ? "#334255" : "#DDE6F2");
+        resources["BorderStrongBrush"] = Solid(dark ? "#4A5E77" : "#C9D6E8");
 
         resources["AccentBrush"] = Solid(dark ? "#4B9CFF" : "#1177F4");
         resources["AccentHoverBrush"] = Solid(dark ? "#6AACFF" : "#0868E6");
         resources["AccentSoftBrush"] = Solid(dark ? "#142A44" : "#E9F3FF");
         resources["AccentSofterBrush"] = Solid(dark ? "#111F31" : "#F4F9FF");
-        resources["SuccessBrush"] = Solid(dark ? "#42C777" : "#149447");
+        resources["SuccessBrush"] = Solid(dark ? "#57D98A" : "#149447");
         resources["SuccessSoftBrush"] = Solid(dark ? "#102A1B" : "#EAF8EF");
-        resources["DangerBrush"] = Solid(dark ? "#FF6D73" : "#DC3F46");
+        resources["DangerBrush"] = Solid(dark ? "#FF7C82" : "#DC3F46");
         resources["DangerSoftBrush"] = Solid(dark ? "#32171A" : "#FFF0F1");
 
         resources["MonitorGroupBrush"] = Gradient(dark ? "#0F1D2B" : "#F1F8FF", dark ? "#12253A" : "#E8F3FF", horizontal: true);
-        resources["MonitorGroupBorderBrush"] = Solid(dark ? "#24476B" : "#C9E2FF");
-        resources["MonitorAccentBrush"] = Solid(dark ? "#55A8FF" : "#1677E8");
+        resources["MonitorGroupBorderBrush"] = Solid(dark ? "#2F5A84" : "#C9E2FF");
+        resources["MonitorAccentBrush"] = Solid(dark ? "#66B2FF" : "#1677E8");
         resources["MonitorIconBrush"] = Solid(dark ? "#153554" : "#E1F0FF");
 
         resources["ComfortGroupBrush"] = Gradient(dark ? "#241D10" : "#FFFBF2", dark ? "#2A2010" : "#FFF4E2", horizontal: true);
-        resources["ComfortGroupBorderBrush"] = Solid(dark ? "#5A4421" : "#F2D59A");
-        resources["ComfortAccentBrush"] = Solid(dark ? "#FFB534" : "#D98B00");
+        resources["ComfortGroupBorderBrush"] = Solid(dark ? "#70542A" : "#F2D59A");
+        resources["ComfortAccentBrush"] = Solid(dark ? "#FFC04A" : "#D98B00");
         resources["ComfortIconBrush"] = Solid(dark ? "#3B2B10" : "#FFF0C8");
         resources["ComfortCardBrush"] = Solid(dark ? "#211A0F" : "#FFFCF6");
 
         resources["ScheduleGroupBrush"] = Gradient(dark ? "#191528" : "#F8F6FF", dark ? "#211A35" : "#F1EEFF", horizontal: true);
-        resources["ScheduleGroupBorderBrush"] = Solid(dark ? "#493D72" : "#D9D0FF");
-        resources["ScheduleAccentBrush"] = Solid(dark ? "#A88BFF" : "#7457E8");
+        resources["ScheduleGroupBorderBrush"] = Solid(dark ? "#5A4A88" : "#D9D0FF");
+        resources["ScheduleAccentBrush"] = Solid(dark ? "#B49AFF" : "#7457E8");
         resources["ScheduleIconBrush"] = Solid(dark ? "#2C2347" : "#ECE7FF");
 
         resources["MonitorCardBrush"] = Solid(dark ? "#141D27" : "#FFFFFF");
-        resources["MonitorCardBorderBrush"] = Solid(dark ? "#28405A" : "#D9E8F8");
+        resources["MonitorCardBorderBrush"] = Solid(dark ? "#34506C" : "#D9E8F8");
         resources["ScheduleCardBrush"] = Solid(dark ? "#171420" : "#FFFFFF");
-        resources["ScheduleCardBorderBrush"] = Solid(dark ? "#3A315A" : "#DDD8F4");
-        resources["ScheduleDividerBrush"] = Solid(dark ? "#302849" : "#ECE8F9");
-        resources["DropZoneBrush"] = Solid(dark ? "#151E28" : "#FFFFFF");
-        resources["DropZoneBorderBrush"] = Solid(dark ? "#335D88" : "#94C4FF");
-        resources["SidebarCalloutBorderBrush"] = Solid(dark ? "#294561" : "#D6E8FF");
+        resources["ScheduleCardBorderBrush"] = Solid(dark ? "#4C416D" : "#DDD8F4");
+        resources["ScheduleDividerBrush"] = Solid(dark ? "#3A3154" : "#ECE8F9");
+        resources["DropZoneBrush"] = Solid(dark ? "#12243A" : "#FFFFFF");
+        resources["DropZoneBorderBrush"] = Solid(dark ? "#4A80B5" : "#94C4FF");
+        resources["SidebarCalloutBorderBrush"] = Solid(dark ? "#365873" : "#D6E8FF");
         resources["ComfortBadgeBrush"] = Solid(dark ? "#3B2B10" : "#FFF0C8");
         resources["ComfortStatusBrush"] = Solid(dark ? "#2B2112" : "#FFF8E6");
-        resources["DangerBorderBrush"] = Solid(dark ? "#5B2B2F" : "#F6C9CC");
-        resources["ToggleTrackBrush"] = Solid(dark ? "#3A4758" : "#DCE4EF");
+        resources["DangerBorderBrush"] = Solid(dark ? "#734047" : "#F6C9CC");
+        resources["ToggleTrackBrush"] = Solid(dark ? "#4A596D" : "#DCE4EF");
         resources["ToggleThumbBrush"] = Solid("#FFFFFF");
     }
 
