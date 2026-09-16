@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using WallpaperScheduler.Application;
 using WallpaperScheduler.Domain;
@@ -10,7 +11,23 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
     private ApplicationThemeMode? _lastPreference;
     private SystemThemeMode? _lastResolved;
 
-    public void Apply(ApplicationThemeMode preference)
+    public void RegisterWindow(Window window)
+    {
+        void ApplyToWindow()
+        {
+            AdoptThemeResources(window);
+            Apply(_lastPreference ?? ApplicationThemeMode.FollowSystem, force: true);
+        }
+
+        if (window.IsLoaded)
+            ApplyToWindow();
+        else
+            window.Loaded += (_, _) => ApplyToWindow();
+    }
+
+    public void Apply(ApplicationThemeMode preference) => Apply(preference, force: false);
+
+    private void Apply(ApplicationThemeMode preference, bool force)
     {
         var resolved = preference switch
         {
@@ -19,13 +36,15 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
             _ => systemThemeService.GetCurrentMode()
         };
 
-        if (_lastPreference == preference && _lastResolved == resolved)
+        if (!force && _lastPreference == preference && _lastResolved == resolved)
             return;
 
         void ApplyCore()
         {
-            var resources = System.Windows.Application.Current.Resources;
-            ApplyPalette(resources, resolved);
+            var app = System.Windows.Application.Current;
+            ApplyPalette(app.Resources, resolved);
+            foreach (Window window in app.Windows)
+                AdoptThemeResources(window);
             _lastPreference = preference;
             _lastResolved = resolved;
         }
@@ -35,6 +54,62 @@ public sealed class AppThemeManager(ISystemThemeService systemThemeService)
             ApplyCore();
         else
             dispatcher.Invoke(ApplyCore);
+    }
+
+    // A maior parte da interface já usa DynamicResource. Este adaptador converte os
+    // poucos brushes literais herdados do layout anterior em referências dinâmicas
+    // uma única vez, para que alternâncias posteriores não exijam recriar a janela.
+    private static void AdoptThemeResources(DependencyObject root)
+    {
+        if (root is Border border)
+        {
+            if (TryColor(border.Background, out var background))
+            {
+                var key = background switch
+                {
+                    "#FFFFFFFF" => "SurfaceBrush",
+                    "#FFFFF0C8" => "ComfortBadgeBrush",
+                    _ => null
+                };
+                if (key is not null)
+                    border.SetResourceReference(Border.BackgroundProperty, key);
+            }
+
+            if (TryColor(border.BorderBrush, out var borderColor))
+            {
+                var key = borderColor switch
+                {
+                    "#FFD6E8FF" => "SidebarCalloutBorderBrush",
+                    "#FFD9E8F8" => "MonitorCardBorderBrush",
+                    "#FFDDD8F4" => "ScheduleCardBorderBrush",
+                    "#FFECE8F9" => "ScheduleDividerBrush",
+                    "#FF94C4FF" or "#FFA9CDF8" => "DropZoneBorderBrush",
+                    _ => null
+                };
+                if (key is not null)
+                    border.SetResourceReference(Border.BorderBrushProperty, key);
+            }
+        }
+        else if (root is Button button && TryColor(button.BorderBrush, out var buttonBorder) && buttonBorder == "#FFF6C9CC")
+        {
+            button.SetResourceReference(Control.BorderBrushProperty, "DangerBorderBrush");
+        }
+
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+            AdoptThemeResources(VisualTreeHelper.GetChild(root, i));
+    }
+
+    private static bool TryColor(Brush? brush, out string value)
+    {
+        if (brush is SolidColorBrush solid)
+        {
+            value = solid.Color.ToString().ToUpperInvariant();
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
     }
 
     private static void ApplyPalette(ResourceDictionary resources, SystemThemeMode mode)
