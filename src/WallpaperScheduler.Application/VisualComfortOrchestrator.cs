@@ -83,6 +83,7 @@ public sealed class VisualComfortOrchestrator(
         if (comfort.Temperature.Enabled)
         {
             var targetKelvin = ResolveTemperatureTarget(config, comfort, localTime);
+            logger.Info($"Temperatura alvo pela curva: hora={localTime:HH\:mm}; dia={Math.Clamp(comfort.Temperature.DayKelvin, 3400, 6500)}K; noite={Math.Clamp(comfort.Temperature.NightKelvin, 3400, 6500)}K; alvo={targetKelvin}K.");
 
             // A curva é função do relógio, não do instante em que o processo iniciou.
             // Cada heartbeat apenas amostra novamente a posição atual da onda.
@@ -154,8 +155,13 @@ public sealed class VisualComfortOrchestrator(
     private static int ResolveTemperatureTarget(AppConfig config, VisualComfortSettings comfort, TimeOnly localTime)
     {
         var settings = comfort.Temperature;
-        if (settings.ControlMode == VisualControlMode.Manual)
-            return Math.Clamp(settings.ManualKelvin, 3400, 6500);
+
+        // A UX atual da temperatura é exclusivamente uma curva contínua de 24 h.
+        // Builds anteriores persistiam ControlMode=Manual e, mesmo após a remoção
+        // desse seletor da interface, isso fazia o orquestrador retornar ManualKelvin
+        // (6500K por padrão) e ignorar completamente o perfil noturno configurado.
+        // Enquanto não existir novamente um override manual explícito na UX, a fonte
+        // de verdade é sempre a curva calculada pelo relógio local.
 
         var enabledRules = config.Rules.Where(x => x.Enabled).ToList();
         var explicitBindings = comfort.Routine.Enabled
