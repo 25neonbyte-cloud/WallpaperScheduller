@@ -19,9 +19,10 @@ public sealed class VisualComfortOrchestratorTests
                 Temperature = new ColorTemperatureSettings
                 {
                     Enabled = true,
+                    ControlMode = VisualControlMode.Scheduled,
                     Method = TemperatureApplicationMethod.Software,
-                    ManualKelvin = 6500,
-                    TransitionMinutes = 0
+                    DayKelvin = 6500,
+                    NightKelvin = 4200
                 },
                 Routine = new VisualRoutineSettings
                 {
@@ -76,7 +77,7 @@ public sealed class VisualComfortOrchestratorTests
     }
 
     [Fact]
-    public async Task Scheduled_temperature_is_derived_from_clock_not_process_start()
+    public async Task Scheduled_temperature_uses_current_clock_position_on_continuous_curve()
     {
         var config = new AppConfig
         {
@@ -89,17 +90,16 @@ public sealed class VisualComfortOrchestratorTests
                     ControlMode = VisualControlMode.Scheduled,
                     Method = TemperatureApplicationMethod.Software,
                     DayKelvin = 6500,
-                    NightKelvin = 4000,
-                    DayStart = new TimeOnly(7, 0),
-                    NightStart = new TimeOnly(19, 0),
-                    TransitionMinutes = 60
+                    NightKelvin = 4000
                 }
-            },
-            Rules = [CreateRule()]
+            }
         };
         var theme = new FakeThemeService();
         var temperature = new FakeTemperatureService();
-        var orchestrator = Create(config, theme, temperature, new DateTimeOffset(2026, 9, 15, 19, 30, 0, TimeSpan.Zero));
+
+        // 18:30 é exatamente o meio do período Tarde (17:00–20:00).
+        // SmoothStep(0,5) = 0,5, logo a curva deve estar exatamente entre 6500K e 4000K.
+        var orchestrator = Create(config, theme, temperature, new DateTimeOffset(2026, 9, 15, 18, 30, 0, TimeSpan.Zero));
 
         await orchestrator.ApplyCurrentAsync();
 
@@ -108,7 +108,35 @@ public sealed class VisualComfortOrchestratorTests
     }
 
     [Fact]
-    public async Task Routine_explicit_value_still_overrides_scheduled_base()
+    public async Task Morning_curve_returns_progressively_to_neutral()
+    {
+        var config = new AppConfig
+        {
+            VisualComfort = new VisualComfortSettings
+            {
+                Enabled = true,
+                Temperature = new ColorTemperatureSettings
+                {
+                    Enabled = true,
+                    ControlMode = VisualControlMode.Scheduled,
+                    Method = TemperatureApplicationMethod.Software,
+                    DayKelvin = 6500,
+                    NightKelvin = 4000
+                }
+            }
+        };
+        var theme = new FakeThemeService();
+        var temperature = new FakeTemperatureService();
+        var orchestrator = Create(config, theme, temperature, new DateTimeOffset(2026, 9, 15, 7, 30, 0, TimeSpan.Zero));
+
+        await orchestrator.ApplyCurrentAsync();
+
+        Assert.Single(temperature.LastRequests);
+        Assert.Equal(5250, temperature.LastRequests[0].Kelvin);
+    }
+
+    [Fact]
+    public async Task Routine_explicit_value_still_overrides_single_full_day_period()
     {
         var rule = CreateRule();
         var config = new AppConfig
@@ -129,10 +157,7 @@ public sealed class VisualComfortOrchestratorTests
                     ControlMode = VisualControlMode.Scheduled,
                     Method = TemperatureApplicationMethod.Software,
                     DayKelvin = 6500,
-                    NightKelvin = 4000,
-                    DayStart = new TimeOnly(7, 0),
-                    NightStart = new TimeOnly(19, 0),
-                    TransitionMinutes = 60
+                    NightKelvin = 4000
                 },
                 Routine = new VisualRoutineSettings
                 {
@@ -186,9 +211,10 @@ public sealed class VisualComfortOrchestratorTests
                 Temperature = new ColorTemperatureSettings
                 {
                     Enabled = true,
+                    ControlMode = VisualControlMode.Scheduled,
                     Method = TemperatureApplicationMethod.Software,
-                    ManualKelvin = 5000,
-                    TransitionMinutes = 0,
+                    DayKelvin = 6500,
+                    NightKelvin = 4200,
                     PerMonitorMethods = new Dictionary<Guid, TemperatureApplicationMethod>
                     {
                         [profileId] = TemperatureApplicationMethod.DdcCi
