@@ -20,17 +20,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IConfigStore _configStore;
     private readonly IConfigTransferService _configTransferService;
     private readonly IAppLogger _logger;
+    private readonly AppThemeManager _appThemeManager;
     private AppConfig _config = new();
     private string _status = "Carregando configuração...";
     private string _monitorDiagnostics = "Detectando monitores...";
     private string _temperatureDiagnostics = "Aguardando diagnóstico dos monitores...";
     private bool _busy;
+    private ApplicationThemeMode _applicationTheme = ApplicationThemeMode.FollowSystem;
     private bool _comfortEnabled;
     private bool _themeEnabled;
+    private VisualControlMode _themeControlMode = VisualControlMode.Manual;
     private SystemThemeMode _manualThemeMode = SystemThemeMode.Light;
+    private string _themeLightStartText = "07:00";
+    private string _themeDarkStartText = "19:00";
     private bool _temperatureEnabled;
+    private VisualControlMode _temperatureControlMode = VisualControlMode.Manual;
     private TemperatureApplicationMethod _temperatureMethod = TemperatureApplicationMethod.Automatic;
     private int _manualTemperatureKelvin = 6500;
+    private int _dayTemperatureKelvin = 6500;
+    private int _nightTemperatureKelvin = 4200;
+    private string _temperatureDayStartText = "07:00";
+    private string _temperatureNightStartText = "19:00";
     private int _temperatureTransitionMinutes = 30;
     private bool _forceSoftwareConflict;
     private bool _routineEnabled;
@@ -43,7 +53,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IMonitorBindingStore monitorBindingStore,
         IConfigStore configStore,
         IConfigTransferService configTransferService,
-        IAppLogger logger)
+        IAppLogger logger,
+        AppThemeManager appThemeManager)
     {
         _orchestrator = orchestrator;
         _comfortOrchestrator = comfortOrchestrator;
@@ -53,6 +64,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _configStore = configStore;
         _configTransferService = configTransferService;
         _logger = logger;
+        _appThemeManager = appThemeManager;
 
         ApplyNowCommand = new AsyncCommand(ApplyNowAsync, () => !Busy);
         RefreshMonitorsCommand = new AsyncCommand(RefreshMonitorsAsync, () => !Busy);
@@ -70,6 +82,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Array WallpaperStyles { get; } = Enum.GetValues<WallpaperStyle>();
     public Array WallpaperScopes { get; } = Enum.GetValues<WallpaperScope>();
     public Array ThemeModes { get; } = Enum.GetValues<SystemThemeMode>();
+    public Array VisualControlModes { get; } = Enum.GetValues<VisualControlMode>();
+    public Array ApplicationThemeModes { get; } = Enum.GetValues<ApplicationThemeMode>();
     public Array TemperatureMethods { get; } = Enum.GetValues<TemperatureApplicationMethod>();
     public Array RoutineThemeTargets { get; } = Enum.GetValues<VisualRoutineThemeTarget>();
 
@@ -77,11 +91,54 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string MonitorDiagnostics { get => _monitorDiagnostics; private set { _monitorDiagnostics = value; OnPropertyChanged(); } }
     public string TemperatureDiagnostics { get => _temperatureDiagnostics; private set { _temperatureDiagnostics = value; OnPropertyChanged(); } }
 
+    public ApplicationThemeMode ApplicationTheme
+    {
+        get => _applicationTheme;
+        set
+        {
+            if (_applicationTheme == value) return;
+            _applicationTheme = value;
+            OnPropertyChanged();
+            _appThemeManager.Apply(value);
+        }
+    }
+
     public bool ComfortEnabled { get => _comfortEnabled; set { _comfortEnabled = value; OnPropertyChanged(); OnPropertyChanged(nameof(ComfortModulesEnabled)); } }
     public bool ComfortModulesEnabled => ComfortEnabled;
     public bool ThemeEnabled { get => _themeEnabled; set { _themeEnabled = value; OnPropertyChanged(); } }
+    public VisualControlMode ThemeControlMode
+    {
+        get => _themeControlMode;
+        set
+        {
+            if (_themeControlMode == value) return;
+            _themeControlMode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsThemeManual));
+            OnPropertyChanged(nameof(IsThemeScheduled));
+        }
+    }
+    public bool IsThemeManual => ThemeControlMode == VisualControlMode.Manual;
+    public bool IsThemeScheduled => ThemeControlMode == VisualControlMode.Scheduled;
     public SystemThemeMode ManualThemeMode { get => _manualThemeMode; set { _manualThemeMode = value; OnPropertyChanged(); } }
+    public string ThemeLightStartText { get => _themeLightStartText; set { _themeLightStartText = value; OnPropertyChanged(); } }
+    public string ThemeDarkStartText { get => _themeDarkStartText; set { _themeDarkStartText = value; OnPropertyChanged(); } }
+
     public bool TemperatureEnabled { get => _temperatureEnabled; set { _temperatureEnabled = value; OnPropertyChanged(); } }
+    public VisualControlMode TemperatureControlMode
+    {
+        get => _temperatureControlMode;
+        set
+        {
+            if (_temperatureControlMode == value) return;
+            _temperatureControlMode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsTemperatureManual));
+            OnPropertyChanged(nameof(IsTemperatureScheduled));
+        }
+    }
+    public bool IsTemperatureManual => TemperatureControlMode == VisualControlMode.Manual;
+    public bool IsTemperatureScheduled => TemperatureControlMode == VisualControlMode.Scheduled;
     public TemperatureApplicationMethod TemperatureMethod
     {
         get => _temperatureMethod;
@@ -96,6 +153,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
     public int ManualTemperatureKelvin { get => _manualTemperatureKelvin; set { _manualTemperatureKelvin = value; OnPropertyChanged(); } }
+    public int DayTemperatureKelvin { get => _dayTemperatureKelvin; set { _dayTemperatureKelvin = value; OnPropertyChanged(); } }
+    public int NightTemperatureKelvin { get => _nightTemperatureKelvin; set { _nightTemperatureKelvin = value; OnPropertyChanged(); } }
+    public string TemperatureDayStartText { get => _temperatureDayStartText; set { _temperatureDayStartText = value; OnPropertyChanged(); } }
+    public string TemperatureNightStartText { get => _temperatureNightStartText; set { _temperatureNightStartText = value; OnPropertyChanged(); } }
     public int TemperatureTransitionMinutes { get => _temperatureTransitionMinutes; set { _temperatureTransitionMinutes = value; OnPropertyChanged(); } }
     public bool ForceSoftwareConflict { get => _forceSoftwareConflict; set { _forceSoftwareConflict = value; OnPropertyChanged(); } }
     public bool RoutineEnabled { get => _routineEnabled; set { _routineEnabled = value; OnPropertyChanged(); } }
@@ -277,22 +338,45 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void LoadComfortEditors()
     {
         var comfort = _config.VisualComfort;
+        _applicationTheme = _config.Ui.Theme;
         _comfortEnabled = comfort.Enabled;
         _themeEnabled = comfort.SystemTheme.Enabled;
+        _themeControlMode = comfort.SystemTheme.ControlMode;
         _manualThemeMode = comfort.SystemTheme.ManualMode;
+        _themeLightStartText = comfort.SystemTheme.LightStart.ToString("HH:mm");
+        _themeDarkStartText = comfort.SystemTheme.DarkStart.ToString("HH:mm");
         _temperatureEnabled = comfort.Temperature.Enabled;
+        _temperatureControlMode = comfort.Temperature.ControlMode;
         _temperatureMethod = comfort.Temperature.Method;
         _manualTemperatureKelvin = comfort.Temperature.ManualKelvin;
+        _dayTemperatureKelvin = comfort.Temperature.DayKelvin;
+        _nightTemperatureKelvin = comfort.Temperature.NightKelvin;
+        _temperatureDayStartText = comfort.Temperature.DayStart.ToString("HH:mm");
+        _temperatureNightStartText = comfort.Temperature.NightStart.ToString("HH:mm");
         _temperatureTransitionMinutes = comfort.Temperature.TransitionMinutes;
         _forceSoftwareConflict = comfort.Temperature.ForceSoftwareWhenExternalTransformDetected;
         _routineEnabled = comfort.Routine.Enabled;
+        _appThemeManager.Apply(_applicationTheme);
+        OnPropertyChanged(nameof(ApplicationTheme));
         OnPropertyChanged(nameof(ComfortEnabled));
         OnPropertyChanged(nameof(ComfortModulesEnabled));
         OnPropertyChanged(nameof(ThemeEnabled));
+        OnPropertyChanged(nameof(ThemeControlMode));
+        OnPropertyChanged(nameof(IsThemeManual));
+        OnPropertyChanged(nameof(IsThemeScheduled));
         OnPropertyChanged(nameof(ManualThemeMode));
+        OnPropertyChanged(nameof(ThemeLightStartText));
+        OnPropertyChanged(nameof(ThemeDarkStartText));
         OnPropertyChanged(nameof(TemperatureEnabled));
+        OnPropertyChanged(nameof(TemperatureControlMode));
+        OnPropertyChanged(nameof(IsTemperatureManual));
+        OnPropertyChanged(nameof(IsTemperatureScheduled));
         OnPropertyChanged(nameof(TemperatureMethod));
         OnPropertyChanged(nameof(ManualTemperatureKelvin));
+        OnPropertyChanged(nameof(DayTemperatureKelvin));
+        OnPropertyChanged(nameof(NightTemperatureKelvin));
+        OnPropertyChanged(nameof(TemperatureDayStartText));
+        OnPropertyChanged(nameof(TemperatureNightStartText));
         OnPropertyChanged(nameof(TemperatureTransitionMinutes));
         OnPropertyChanged(nameof(ForceSoftwareConflict));
         OnPropertyChanged(nameof(RoutineEnabled));
@@ -420,8 +504,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (ManualTemperatureKelvin is < 3400 or > 6500)
             throw new InvalidOperationException("A temperatura manual deve ficar entre 3400 K e 6500 K.");
+        if (DayTemperatureKelvin is < 3400 or > 6500)
+            throw new InvalidOperationException("A temperatura do período claro deve ficar entre 3400 K e 6500 K.");
+        if (NightTemperatureKelvin is < 3400 or > 6500)
+            throw new InvalidOperationException("A temperatura do período escuro deve ficar entre 3400 K e 6500 K.");
         if (TemperatureTransitionMinutes is < 0 or > 240)
             throw new InvalidOperationException("A transição deve ficar entre 0 e 240 minutos.");
+        if (!TimeOnly.TryParse(ThemeLightStartText, out var themeLightStart))
+            throw new InvalidOperationException("Horário de início do tema claro inválido. Use HH:mm.");
+        if (!TimeOnly.TryParse(ThemeDarkStartText, out var themeDarkStart))
+            throw new InvalidOperationException("Horário de início do tema escuro inválido. Use HH:mm.");
+        if (ThemeControlMode == VisualControlMode.Scheduled && themeLightStart == themeDarkStart)
+            throw new InvalidOperationException("Tema automático: os horários claro e escuro precisam ser diferentes.");
+        if (!TimeOnly.TryParse(TemperatureDayStartText, out var temperatureDayStart))
+            throw new InvalidOperationException("Horário de início da temperatura diurna inválido. Use HH:mm.");
+        if (!TimeOnly.TryParse(TemperatureNightStartText, out var temperatureNightStart))
+            throw new InvalidOperationException("Horário de início da temperatura noturna inválido. Use HH:mm.");
+        if (TemperatureControlMode == VisualControlMode.Scheduled && temperatureDayStart == temperatureNightStart)
+            throw new InvalidOperationException("Temperatura automática: os horários diurno e noturno precisam ser diferentes.");
 
         var rules = new List<WallpaperRule>();
         var routineBindings = new Dictionary<Guid, VisualRoutineBinding>();
@@ -449,13 +549,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
             profile.Name = string.IsNullOrWhiteSpace(profileEditor.Name) ? "Monitor" : profileEditor.Name.Trim();
         }
 
+        _config.Ui.Theme = ApplicationTheme;
         var comfort = _config.VisualComfort;
         comfort.Enabled = ComfortEnabled;
         comfort.SystemTheme.Enabled = ThemeEnabled;
+        comfort.SystemTheme.ControlMode = ThemeControlMode;
         comfort.SystemTheme.ManualMode = ManualThemeMode;
+        comfort.SystemTheme.LightStart = themeLightStart;
+        comfort.SystemTheme.DarkStart = themeDarkStart;
         comfort.Temperature.Enabled = TemperatureEnabled;
+        comfort.Temperature.ControlMode = TemperatureControlMode;
         comfort.Temperature.Method = TemperatureMethod;
         comfort.Temperature.ManualKelvin = ManualTemperatureKelvin;
+        comfort.Temperature.DayKelvin = DayTemperatureKelvin;
+        comfort.Temperature.NightKelvin = NightTemperatureKelvin;
+        comfort.Temperature.DayStart = temperatureDayStart;
+        comfort.Temperature.NightStart = temperatureNightStart;
         comfort.Temperature.TransitionMinutes = TemperatureTransitionMinutes;
         comfort.Temperature.ForceSoftwareWhenExternalTransformDetected = ForceSoftwareConflict;
         comfort.Routine.Enabled = RoutineEnabled;
@@ -467,9 +576,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         foreach (var profile in MonitorProfiles.Where(x => x.HasTemperatureOverride && x.TemperatureMethod != TemperatureMethod))
             methods[profile.Id] = profile.TemperatureMethod;
 
-        _config.Version = 3;
+        _config.Version = 4;
         _config.Rules = rules;
         await _configStore.SaveAsync(_config);
+        _appThemeManager.Apply(ApplicationTheme);
     }
 
     private void AddPeriod()
@@ -502,6 +612,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await ReconcileMonitorsAsync();
             var wallpaper = await _orchestrator.ReapplyCurrentAsync();
             var comfort = await _comfortOrchestrator.ReapplyCurrentAsync();
+            _appThemeManager.Apply(ApplicationTheme);
             await RefreshComfortDiagnosticsCoreAsync();
             Status = $"Wallpaper: {wallpaper.Message}  |  Conforto: {comfort.Message}";
         }
