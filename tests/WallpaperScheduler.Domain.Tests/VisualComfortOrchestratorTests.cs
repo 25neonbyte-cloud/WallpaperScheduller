@@ -48,6 +48,115 @@ public sealed class VisualComfortOrchestratorTests
     }
 
     [Fact]
+    public async Task Scheduled_theme_uses_current_machine_clock_period()
+    {
+        var config = new AppConfig
+        {
+            VisualComfort = new VisualComfortSettings
+            {
+                Enabled = true,
+                SystemTheme = new SystemThemeSettings
+                {
+                    Enabled = true,
+                    ControlMode = VisualControlMode.Scheduled,
+                    ManualMode = SystemThemeMode.Light,
+                    LightStart = new TimeOnly(7, 0),
+                    DarkStart = new TimeOnly(19, 0)
+                }
+            },
+            Rules = [CreateRule()]
+        };
+        var theme = new FakeThemeService();
+        var temperature = new FakeTemperatureService();
+        var orchestrator = Create(config, theme, temperature, new DateTimeOffset(2026, 9, 15, 20, 0, 0, TimeSpan.Zero));
+
+        await orchestrator.ReapplyCurrentAsync();
+
+        Assert.Equal(SystemThemeMode.Dark, theme.LastApplied);
+    }
+
+    [Fact]
+    public async Task Scheduled_temperature_is_derived_from_clock_not_process_start()
+    {
+        var config = new AppConfig
+        {
+            VisualComfort = new VisualComfortSettings
+            {
+                Enabled = true,
+                Temperature = new ColorTemperatureSettings
+                {
+                    Enabled = true,
+                    ControlMode = VisualControlMode.Scheduled,
+                    Method = TemperatureApplicationMethod.Software,
+                    DayKelvin = 6500,
+                    NightKelvin = 4000,
+                    DayStart = new TimeOnly(7, 0),
+                    NightStart = new TimeOnly(19, 0),
+                    TransitionMinutes = 60
+                }
+            },
+            Rules = [CreateRule()]
+        };
+        var theme = new FakeThemeService();
+        var temperature = new FakeTemperatureService();
+        var orchestrator = Create(config, theme, temperature, new DateTimeOffset(2026, 9, 15, 19, 30, 0, TimeSpan.Zero));
+
+        await orchestrator.ApplyCurrentAsync();
+
+        Assert.Single(temperature.LastRequests);
+        Assert.Equal(5250, temperature.LastRequests[0].Kelvin);
+    }
+
+    [Fact]
+    public async Task Routine_explicit_value_still_overrides_scheduled_base()
+    {
+        var rule = CreateRule();
+        var config = new AppConfig
+        {
+            VisualComfort = new VisualComfortSettings
+            {
+                Enabled = true,
+                SystemTheme = new SystemThemeSettings
+                {
+                    Enabled = true,
+                    ControlMode = VisualControlMode.Scheduled,
+                    LightStart = new TimeOnly(7, 0),
+                    DarkStart = new TimeOnly(19, 0)
+                },
+                Temperature = new ColorTemperatureSettings
+                {
+                    Enabled = true,
+                    ControlMode = VisualControlMode.Scheduled,
+                    Method = TemperatureApplicationMethod.Software,
+                    DayKelvin = 6500,
+                    NightKelvin = 4000,
+                    DayStart = new TimeOnly(7, 0),
+                    NightStart = new TimeOnly(19, 0),
+                    TransitionMinutes = 60
+                },
+                Routine = new VisualRoutineSettings
+                {
+                    Enabled = true,
+                    Bindings = new Dictionary<Guid, VisualRoutineBinding>
+                    {
+                        [rule.Id] = new() { Theme = VisualRoutineThemeTarget.Light, TemperatureKelvin = 4700 }
+                    }
+                }
+            },
+            Rules = [rule]
+        };
+        var theme = new FakeThemeService();
+        var temperature = new FakeTemperatureService();
+        var orchestrator = Create(config, theme, temperature, new DateTimeOffset(2026, 9, 15, 20, 0, 0, TimeSpan.Zero));
+
+        await orchestrator.ReapplyCurrentAsync();
+
+        Assert.Equal(SystemThemeMode.Light, theme.LastApplied);
+        Assert.Single(temperature.LastRequests);
+        Assert.Equal(4700, temperature.LastRequests[0].Kelvin);
+    }
+
+    [Fact]
     public async Task Disabled_master_restores_owned_visual_state()
     {
         var config = new AppConfig { VisualComfort = new VisualComfortSettings { Enabled = false }, Rules = [CreateRule()] };
@@ -109,7 +218,8 @@ public sealed class VisualComfortOrchestratorTests
     private static VisualComfortOrchestrator Create(
         AppConfig config,
         FakeThemeService theme,
-        FakeTemperatureService temperature)
+        FakeTemperatureService temperature,
+        DateTimeOffset? now = null)
     {
         var monitor = new MonitorInfo("MONITOR", "Tela", 1920, 1080, Left: 0, Top: 0);
         var profile = config.MonitorProfiles.FirstOrDefault();
@@ -126,7 +236,7 @@ public sealed class VisualComfortOrchestratorTests
             new FakeResolver(new MonitorResolution(profile.Id, profile.Name, monitor, false, "Ativo")),
             theme,
             temperature,
-            new FakeClock(new DateTimeOffset(2026, 9, 15, 12, 0, 0, TimeSpan.Zero)),
+            new FakeClock(now ?? new DateTimeOffset(2026, 9, 15, 12, 0, 0, TimeSpan.Zero)),
             new FakeLogger());
     }
 
