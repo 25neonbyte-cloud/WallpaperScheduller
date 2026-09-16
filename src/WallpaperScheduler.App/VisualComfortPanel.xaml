@@ -17,7 +17,7 @@
             </Border>
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="Conforto visual" Style="{StaticResource SectionTitleStyle}"/>
-                <TextBlock Text="Tema, temperatura de cor e rotina com automação pelo relógio local do Windows."
+                <TextBlock Text="Tema e adaptação cromática sincronizados ao relógio local e aos períodos já existentes."
                            Style="{StaticResource SectionSubtitleStyle}"/>
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -27,7 +27,7 @@
             </StackPanel>
         </Grid>
 
-        <!-- A aparência do próprio programa é independente do módulo de conforto. -->
+        <!-- Aparência local: independente do módulo de conforto. -->
         <Border CornerRadius="13" Padding="14" Margin="0,14,0,0"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -42,7 +42,7 @@
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Text="Aparência do aplicativo" FontWeight="SemiBold"/>
-                    <TextBlock Text="Tema da interface do Wallpaper Scheduler; funciona mesmo com o Conforto visual desligado."
+                    <TextBlock Text="Tema da interface do Wallpaper Scheduler; independente do controle do tema do Windows."
                                FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                 </StackPanel>
                 <ComboBox Grid.Column="2" ItemsSource="{Binding ApplicationThemeModes}"
@@ -101,19 +101,15 @@
                                     <local:Time24TextBox Text="{Binding ThemeDarkStartText, UpdateSourceTrigger=PropertyChanged}" Height="34" Margin="0,5,0,0"/>
                                 </StackPanel>
                             </Grid>
-                            <TextBlock Text="O horário é o relógio local da máquina; iniciar o programa mais tarde não reinicia o ciclo."
+                            <TextBlock Text="Usa o relógio local da máquina e recalcula após suspensão, desbloqueio ou mudança de horário."
                                        Margin="0,8,0,0" FontSize="10" TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </StackPanel>
-
-                        <TextBlock Text="A Rotina visual só sobrescreve este controle quando um período define Claro ou Escuro explicitamente."
-                                   Margin="0,8,0,0" FontSize="10" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- Temperatura -->
+            <!-- Temperatura: curva contínua, sem segundo cronograma. -->
             <Border CornerRadius="13" Padding="14" Margin="0,0,10,0"
                     Background="{DynamicResource ComfortCardBrush}"
                     BorderBrush="{DynamicResource ComfortGroupBorderBrush}" BorderThickness="1">
@@ -126,70 +122,67 @@
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="Temperatura e tom" FontWeight="SemiBold"/>
-                                <TextBlock Text="Relógio local + Software/DDC/CI" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="Curva contínua de 24 horas" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
                             </StackPanel>
                         </StackPanel>
                         <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding TemperatureEnabled}" VerticalAlignment="Center"/>
                     </Grid>
 
                     <StackPanel Margin="0,12,0,0" IsEnabled="{Binding TemperatureEnabled}">
-                        <TextBlock Text="Controle" Style="{StaticResource FieldLabelStyle}"/>
-                        <ComboBox ItemsSource="{Binding VisualControlModes}" SelectedItem="{Binding TemperatureControlMode}" Margin="0,5,0,0">
+                        <TextBlock Text="Perfil diário" Style="{StaticResource FieldLabelStyle}"/>
+                        <Border Height="18" CornerRadius="9" Margin="0,6,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#F09A45" Offset="0"/>
+                                    <GradientStop Color="#F6C56E" Offset="0.22"/>
+                                    <GradientStop Color="#EAF4FF" Offset="0.43"/>
+                                    <GradientStop Color="#EAF4FF" Offset="0.60"/>
+                                    <GradientStop Color="#F6C56E" Offset="0.80"/>
+                                    <GradientStop Color="#F09A45" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Grid Margin="0,5,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Madrugada" FontSize="8.5" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Grid.Column="1" Text="Manhã" HorizontalAlignment="Center" FontSize="8.5" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Grid.Column="2" Text="Dia" HorizontalAlignment="Center" FontSize="8.5" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Grid.Column="3" Text="Tarde" HorizontalAlignment="Center" FontSize="8.5" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Grid.Column="4" Text="Noite" HorizontalAlignment="Right" FontSize="8.5" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Grid>
+
+                        <TextBlock Text="Calor noturno" Style="{StaticResource FieldLabelStyle}" Margin="0,12,0,0"/>
+                        <Slider Minimum="3400" Maximum="6500" Value="{Binding NightTemperatureKelvin}"
+                                SmallChange="50" LargeChange="200" Margin="0,6,0,0"/>
+                        <Grid Margin="0,2,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Mais quente · 3400 K" FontSize="9" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Grid.Column="1" Text="Neutro · 6500 K" FontSize="9" Foreground="{DynamicResource TextMutedBrush}"/>
+                        </Grid>
+                        <TextBlock Margin="0,6,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}">
+                            <Run Text="Perfil noturno atual: "/><Run Text="{Binding NightTemperatureKelvin}"/><Run Text=" K"/>
+                        </TextBlock>
+
+                        <TextBlock Text="A curva usa os horários dos períodos existentes: a Manhã retorna progressivamente ao neutro, o Dia permanece neutro, a Tarde aquece de forma contínua e Noite/Madrugada mantêm o perfil quente. Não há janela de transição iniciada ao abrir o programa."
+                                   Margin="0,9,0,0" FontSize="9.5" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                        <TextBlock Text="Método técnico de aplicação" Style="{StaticResource FieldLabelStyle}" Margin="0,10,0,0"/>
+                        <ComboBox ItemsSource="{Binding TemperatureMethods}" SelectedItem="{Binding TemperatureMethod}" Margin="0,5,0,0">
                             <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayConverter}}"/></DataTemplate></ComboBox.ItemTemplate>
                         </ComboBox>
-
-                        <StackPanel Margin="0,9,0,0">
-                            <TextBlock Text="Método técnico de aplicação" Style="{StaticResource FieldLabelStyle}"/>
-                            <ComboBox ItemsSource="{Binding TemperatureMethods}" SelectedItem="{Binding TemperatureMethod}" Margin="0,5,0,0">
-                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayConverter}}"/></DataTemplate></ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <TextBlock Text="Isto escolhe como a cor chega ao monitor; não define horários."
-                                       Margin="0,5,0,0" FontSize="9.5" TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextMutedBrush}"/>
-                        </StackPanel>
-
-                        <StackPanel Margin="0,10,0,0"
-                                    Visibility="{Binding IsTemperatureManual, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <TextBlock Text="Temperatura manual (K)" Style="{StaticResource FieldLabelStyle}"/>
-                            <TextBox Text="{Binding ManualTemperatureKelvin, UpdateSourceTrigger=LostFocus}"
-                                     local:NumericTextBoxBehavior.IsEnabled="True" Padding="10,0" Height="34" Margin="0,5,0,0"
-                                     ToolTip="Faixa: 3400–6500 K."/>
-                        </StackPanel>
-
-                        <StackPanel Margin="0,10,0,0"
-                                    Visibility="{Binding IsTemperatureScheduled, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,5,0">
-                                    <TextBlock Text="Dia a partir de" Style="{StaticResource FieldLabelStyle}"/>
-                                    <local:Time24TextBox Text="{Binding TemperatureDayStartText, UpdateSourceTrigger=PropertyChanged}" Height="34" Margin="0,5,0,0"/>
-                                    <TextBlock Text="Temperatura dia (K)" Style="{StaticResource FieldLabelStyle}" Margin="0,7,0,0"/>
-                                    <TextBox Text="{Binding DayTemperatureKelvin, UpdateSourceTrigger=LostFocus}"
-                                             local:NumericTextBoxBehavior.IsEnabled="True" Height="34" Padding="10,0" Margin="0,5,0,0"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="5,0,0,0">
-                                    <TextBlock Text="Noite a partir de" Style="{StaticResource FieldLabelStyle}"/>
-                                    <local:Time24TextBox Text="{Binding TemperatureNightStartText, UpdateSourceTrigger=PropertyChanged}" Height="34" Margin="0,5,0,0"/>
-                                    <TextBlock Text="Temperatura noite (K)" Style="{StaticResource FieldLabelStyle}" Margin="0,7,0,0"/>
-                                    <TextBox Text="{Binding NightTemperatureKelvin, UpdateSourceTrigger=LostFocus}"
-                                             local:NumericTextBoxBehavior.IsEnabled="True" Height="34" Padding="10,0" Margin="0,5,0,0"/>
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-
-                        <TextBlock Text="Transição (min)" Style="{StaticResource FieldLabelStyle}" Margin="0,9,0,0"/>
-                        <TextBox Text="{Binding TemperatureTransitionMinutes, UpdateSourceTrigger=LostFocus}"
-                                 local:NumericTextBoxBehavior.IsEnabled="True" Padding="10,0" Height="34" Margin="0,5,0,0"/>
-                        <TextBlock Text="No automático por horário, o ponto da transição é calculado pelo relógio local; abrir o app no meio dela aplica diretamente o valor correspondente."
-                                   Margin="0,6,0,0" FontSize="9.5" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Este campo escolhe somente como a curva é aplicada ao monitor; não cria horários nem altera a onda."
+                                   Margin="0,5,0,0" FontSize="9.5" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextMutedBrush}"/>
                         <CheckBox IsChecked="{Binding ForceSoftwareConflict}" Margin="0,9,0,0"
                                   Content="Forçar mesmo com outro filtro detectado" FontSize="10"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- Rotina -->
+            <!-- Rotina: não cria uma segunda estrutura de períodos. -->
             <Border CornerRadius="13" Padding="14"
                     Background="{DynamicResource ComfortCardBrush}"
                     BorderBrush="{DynamicResource ComfortGroupBorderBrush}" BorderThickness="1">
@@ -202,52 +195,24 @@
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="Rotina visual" FontWeight="SemiBold"/>
-                                <TextBlock Text="Sobrescrita por período" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="Usa Períodos do dia" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
                             </StackPanel>
                         </StackPanel>
                         <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding RoutineEnabled}" VerticalAlignment="Center"/>
                     </Grid>
                     <StackPanel Margin="0,12,0,0" IsEnabled="{Binding RoutineEnabled}">
-                        <TextBlock Text="Usa os mesmos períodos do agendamento de wallpaper. Um valor explícito aqui tem prioridade sobre o controle base por horário."
+                        <TextBlock Text="A Rotina visual usa a estrutura original de Períodos do dia abaixo. Este painel não cria, substitui nem reorganiza esse cronograma."
                                    FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
-                        <TextBlock Text="'Usar controle base' e temperatura vazia preservam o manual/automático definido nos módulos ao lado."
+                        <TextBlock Text="Madrugada, Manhã, Dia, Tarde e Noite continuam pertencendo ao scheduler principal; temperatura e tema apenas acompanham esses períodos."
                                    Margin="0,8,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
-                        <TextBlock Text="Ao retornar de suspensão ou alterar o relógio, o estado correto para aquele horário é recalculado."
+                        <TextBlock Text="Valores de temperatura já associados a períodos antigos são tratados como pontos da curva, com interpolação entre eles, e não como saltos instantâneos."
                                    Margin="0,8,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
         </UniformGrid>
 
-        <Expander Header="Rotina por período" Margin="0,12,0,0" IsEnabled="{Binding ComfortModulesEnabled}">
-            <ItemsControl ItemsSource="{Binding Periods}" Margin="0,8,0,0">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Margin="0,3">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.3*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="SemiBold" FontSize="11"/>
-                            <ComboBox Grid.Column="1" Margin="8,0"
-                                      ItemsSource="{Binding DataContext.RoutineThemeTargets, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                      SelectedItem="{Binding RoutineTheme}"
-                                      IsEnabled="{Binding DataContext.RoutineEnabled, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
-                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumDisplayConverter}}"/></DataTemplate></ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <TextBox Grid.Column="2" Margin="8,0,0,0" Height="32" Padding="10,0"
-                                     Text="{Binding RoutineTemperatureKelvin, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"
-                                     local:NumericTextBoxBehavior.IsEnabled="True"
-                                     IsEnabled="{Binding DataContext.RoutineEnabled, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                     ToolTip="Temperatura em K (3400–6500). Deixe vazio para usar o controle base."/>
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </Expander>
-
-        <Expander Header="Método por monitor e diagnóstico" Margin="0,8,0,0" IsEnabled="{Binding ComfortModulesEnabled}">
+        <Expander Header="Método por monitor e diagnóstico" Margin="0,10,0,0" IsEnabled="{Binding ComfortModulesEnabled}">
             <StackPanel Margin="0,8,0,0">
                 <ItemsControl ItemsSource="{Binding MonitorProfiles}">
                     <ItemsControl.ItemTemplate>
