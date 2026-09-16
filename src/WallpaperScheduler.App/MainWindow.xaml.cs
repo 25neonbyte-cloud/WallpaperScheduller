@@ -25,11 +25,17 @@ public partial class MainWindow : Window
     private readonly IAppLogger _logger;
     private bool _restoreMaximized;
 
-    public MainWindow(MainViewModel viewModel, IAppLogger logger)
+    public MainWindow(MainViewModel viewModel, IAppLogger logger, AppThemeManager appThemeManager)
     {
         _logger = logger;
         InitializeComponent();
         DataContext = viewModel;
+
+        // O XAML principal ainda contém o cartão de apresentação histórico. O painel
+        // funcional ocupa a mesma região sem duplicar scheduler nem criar outra janela.
+        ComfortSection.Child = new VisualComfortPanel();
+        appThemeManager.RegisterWindow(this);
+
         SourceInitialized += OnSourceInitialized;
         Closing += OnWindowClosingSaveState;
     }
