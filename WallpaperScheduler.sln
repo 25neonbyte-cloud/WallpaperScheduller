@@ -10,7 +10,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Infrastr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.App", "src\WallpaperScheduler.App\WallpaperScheduler.App.csproj", "{A805049B-B472-42A5-BDA2-EE437BC0737D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Network", "src\WallpaperScheduler.Network\WallpaperScheduler.Network.csproj", "{A4D0A138-A4D1-4C13-87C8-80CEB307E8BE}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Domain.Tests", "tests\WallpaperScheduler.Domain.Tests\WallpaperScheduler.Domain.Tests.csproj", "{22D21BC9-B01C-463C-8A7C-672E059F6939}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperScheduler.Network.Tests", "tests\WallpaperScheduler.Network.Tests\WallpaperScheduler.Network.Tests.csproj", "{8B875F2C-31BC-4236-A4B5-41C29E04F9E4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,5 +42,13 @@ Global
 		{22D21BC9-B01C-463C-8A7C-672E059F6939}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{22D21BC9-B01C-463C-8A7C-672E059F6939}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{22D21BC9-B01C-463C-8A7C-672E059F6939}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4D0A138-A4D1-4C13-87C8-80CEB307E8BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4D0A138-A4D1-4C13-87C8-80CEB307E8BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4D0A138-A4D1-4C13-87C8-80CEB307E8BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4D0A138-A4D1-4C13-87C8-80CEB307E8BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8B875F2C-31BC-4236-A4B5-41C29E04F9E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B875F2C-31BC-4236-A4B5-41C29E04F9E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B875F2C-31BC-4236-A4B5-41C29E04F9E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B875F2C-31BC-4236-A4B5-41C29E04F9E4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
