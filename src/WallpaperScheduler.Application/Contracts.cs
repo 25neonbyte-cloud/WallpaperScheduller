@@ -82,15 +82,18 @@ public sealed record ColorTemperatureApplyResult(
 
 public sealed record VisualComfortApplyResult(bool Applied, string Message);
 
-public interface IConfigStore
-{
-    Task<AppConfig> LoadAsync(CancellationToken cancellationToken = default);
-    Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default);
-}
-
 public interface IEffectiveConfigProvider
 {
     Task<AppConfig> LoadEffectiveAsync(CancellationToken cancellationToken = default);
+}
+
+public interface IConfigStore : IEffectiveConfigProvider
+{
+    Task<AppConfig> LoadAsync(CancellationToken cancellationToken = default);
+    Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default);
+
+    Task<AppConfig> IEffectiveConfigProvider.LoadEffectiveAsync(CancellationToken cancellationToken) =>
+        LoadAsync(cancellationToken);
 }
 
 public sealed record NetworkRuntimeStatus(
