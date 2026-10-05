@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WallpaperScheduler.Application;
 using WallpaperScheduler.Domain;
 using WallpaperScheduler.Infrastructure;
+using WallpaperScheduler.Network;
 
 namespace WallpaperScheduler.App;
 
@@ -31,13 +32,23 @@ public partial class App : System.Windows.Application
         var configPath = Path.Combine(basePath, "config.json");
         var bindingsPath = Path.Combine(basePath, "monitor-bindings.json");
         var logsPath = Path.Combine(basePath, "logs");
+        var networkPath = Path.Combine(basePath, "network");
 
         services.AddSingleton<IAppLogger>(_ => new FileAppLogger(logsPath));
         services.AddSingleton<JsonConfigStore>(sp => new JsonConfigStore(configPath, sp.GetRequiredService<IAppLogger>()));
         services.AddSingleton<IConfigStore>(sp => sp.GetRequiredService<JsonConfigStore>());
         services.AddSingleton<IConfigTransferService>(sp => sp.GetRequiredService<JsonConfigStore>());
         services.AddSingleton<IRuleEngine, RuleEngine>();
-        services.AddSingleton<IClock, SystemClock>();
+
+        services.AddSingleton(_ => new NetworkPolicyCacheStore(networkPath));
+        services.AddSingleton<NetworkClockState>();
+        services.AddSingleton<IClock, NetworkSynchronizedClock>();
+        services.AddSingleton<IEffectiveConfigProvider, NetworkAwareEffectiveConfigProvider>();
+        services.AddSingleton<NetworkPolicyBuilder>();
+        services.AddSingleton<ControllerServer>();
+        services.AddSingleton<AgentSyncService>();
+        services.AddSingleton<NetworkCoordinator>();
+        services.AddSingleton<INetworkCoordinator>(sp => sp.GetRequiredService<NetworkCoordinator>());
         services.AddSingleton<IMonitorBindingStore>(_ => new JsonMonitorBindingStore(bindingsPath));
         services.AddSingleton<IMonitorProfileResolver, MonitorProfileResolver>();
         services.AddSingleton<IStartupService, WindowsStartupService>();
@@ -63,6 +74,9 @@ public partial class App : System.Windows.Application
         _logger.Info("Wallpaper Scheduler iniciado.");
         DpiDiagnostics.LogProcess(_logger);
 
+        var network = _services.GetRequiredService<NetworkCoordinator>();
+        network.StartAsync().GetAwaiter().GetResult();
+
         var loop = _services.GetRequiredService<WallpaperSchedulerHostedLoop>();
         loop.Start();
         _services.GetRequiredService<SystemEventCoordinator>().Start();
@@ -84,6 +98,7 @@ public partial class App : System.Windows.Application
         _logger?.Info("Wallpaper Scheduler encerrado.");
         DispatcherUnhandledException -= OnDispatcherUnhandledException;
         TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
+        _services?.GetService<NetworkCoordinator>()?.Dispose();
         _services?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
