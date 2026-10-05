@@ -99,7 +99,7 @@ public sealed class ControllerServer(NetworkPolicyBuilder policyBuilder, IAppLog
     public void Dispose()
     {
         if (_app is null) return;
-        try { _app.StopAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult(); }
+        try { _app.StopAsync().GetAwaiter().GetResult(); }
         catch { }
         try { _app.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
         catch { }
