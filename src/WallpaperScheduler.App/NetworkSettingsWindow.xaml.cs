@@ -69,7 +69,7 @@ public partial class NetworkSettingsWindow : Window
         {
             if (!int.TryParse(PortBox.Text, out var port) || port is < 1024 or > 65535)
             {
-                MessageBox.Show(this, "Informe uma porta entre 1024 e 65535.", "Rede", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show(this, "Informe uma porta entre 1024 e 65535.", "Rede", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             network.ControllerPort = port;
@@ -85,19 +85,19 @@ public partial class NetworkSettingsWindow : Window
             if (!Uri.TryCreate(network.ControllerUrl, UriKind.Absolute, out var uri) ||
                 (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                MessageBox.Show(this, "Informe o endereço do Controller, por exemplo http://192.168.1.10:48721.", "Rede", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show(this, "Informe o endereço do Controller, por exemplo http://192.168.1.10:48721.", "Rede", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(network.SharedSecret))
             {
-                MessageBox.Show(this, "Copie para este Agent a chave de pareamento exibida no Controller.", "Rede", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show(this, "Copie para este Agent a chave de pareamento exibida no Controller.", "Rede", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
         }
 
         await _configStore.SaveAsync(_config);
-        MessageBox.Show(this, "Configuração de rede salva. Reinicie o Wallpaper Scheduler para aplicar o papel desta máquina.", "Rede", MessageBoxButton.OK, MessageBoxImage.Information);
+        System.Windows.MessageBox.Show(this, "Configuração de rede salva. Reinicie o Wallpaper Scheduler para aplicar o papel desta máquina.", "Rede", MessageBoxButton.OK, MessageBoxImage.Information);
         DialogResult = true;
     }
 
