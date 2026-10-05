@@ -1,0 +1,72 @@
+<Window x:Class="WallpaperScheduler.App.NetworkSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rede — Wallpaper Scheduler"
+        Width="560" Height="610" MinWidth="520" MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        FontFamily="Segoe UI">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,18">
+            <TextBlock Text="Mestre / Agente" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock Text="O Controller distribui wallpapers e a política de conforto visual. Agents mantêm cache local e continuam operando quando a rede cai."
+                       Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Modo desta máquina" Style="{StaticResource FieldLabelStyle}"/>
+                <ComboBox x:Name="RoleBox" Margin="0,5,0,14" SelectionChanged="RoleBox_SelectionChanged">
+                    <ComboBoxItem Content="Local / independente"/>
+                    <ComboBoxItem Content="Mestre / Controller"/>
+                    <ComboBoxItem Content="Agente / Slave"/>
+                </ComboBox>
+
+                <TextBlock Text="Nome da máquina" Style="{StaticResource FieldLabelStyle}"/>
+                <TextBox x:Name="NodeNameBox" Margin="0,5,0,14"/>
+
+                <TextBlock Text="Grupo" Style="{StaticResource FieldLabelStyle}"/>
+                <TextBox x:Name="GroupBox" Margin="0,5,0,14" ToolTip="Máquinas no mesmo grupo recebem a mesma política."/>
+
+                <StackPanel x:Name="ControllerPanel">
+                    <TextBlock Text="Porta do Controller" Style="{StaticResource FieldLabelStyle}"/>
+                    <TextBox x:Name="PortBox" Margin="0,5,0,14"/>
+
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Chave de pareamento" Style="{StaticResource FieldLabelStyle}"/>
+                            <TextBox x:Name="SecretBox" Margin="0,5,8,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" VerticalAlignment="Bottom" Style="{StaticResource SecondaryButtonStyle}" Content="Gerar chave" Click="GenerateSecret_Click"/>
+                    </Grid>
+                    <TextBlock Text="No Agent, use o IP desta máquina no formato http://IP:porta e copie a mesma chave."
+                               Margin="0,0,0,14" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"/>
+                </StackPanel>
+
+                <StackPanel x:Name="AgentPanel">
+                    <TextBlock Text="Endereço do Controller" Style="{StaticResource FieldLabelStyle}"/>
+                    <TextBox x:Name="ControllerUrlBox" Margin="0,5,0,14" ToolTip="Exemplo: http://192.168.1.10:48721"/>
+                    <TextBlock Text="Chave de pareamento" Style="{StaticResource FieldLabelStyle}"/>
+                    <TextBox x:Name="AgentSecretBox" Margin="0,5,0,14"/>
+                    <TextBlock Text="O Agent baixa a política e os wallpapers para cache local. Se o Controller ficar indisponível, a última política válida continua ativa."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Margin="0,18,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <TextBlock Text="Alterações de papel da máquina exigem reiniciar o aplicativo." VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"/>
+            <Button Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}" Content="Cancelar" Margin="0,0,10,0" Click="Cancel_Click"/>
+            <Button Grid.Column="2" Style="{StaticResource PrimaryButtonStyle}" Content="Salvar" Click="Save_Click"/>
+        </Grid>
+    </Grid>
+</Window>
