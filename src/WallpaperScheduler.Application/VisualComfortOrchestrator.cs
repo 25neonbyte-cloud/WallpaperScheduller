@@ -3,7 +3,7 @@ using WallpaperScheduler.Domain;
 namespace WallpaperScheduler.Application;
 
 public sealed class VisualComfortOrchestrator(
-    IConfigStore configStore,
+    IEffectiveConfigProvider configProvider,
     IRuleEngine ruleEngine,
     IMonitorService monitorService,
     IMonitorProfileResolver monitorProfileResolver,
@@ -25,7 +25,7 @@ public sealed class VisualComfortOrchestrator(
     public async Task<IReadOnlyList<TemperatureMonitorCapability>> GetTemperatureCapabilitiesAsync(
         CancellationToken cancellationToken = default)
     {
-        var config = await configStore.LoadAsync(cancellationToken);
+        var config = await configProvider.LoadEffectiveAsync(cancellationToken);
         var monitors = monitorService.GetActiveMonitors();
         var resolutions = await monitorProfileResolver.ResolveAsync(config, monitors, cancellationToken);
         return colorTemperatureService.GetCapabilities(resolutions);
@@ -42,7 +42,7 @@ public sealed class VisualComfortOrchestrator(
 
     private async Task<VisualComfortApplyResult> ApplyCurrentCoreAsync(bool forceReapply, CancellationToken cancellationToken)
     {
-        var config = await configStore.LoadAsync(cancellationToken);
+        var config = await configProvider.LoadEffectiveAsync(cancellationToken);
         var comfort = config.VisualComfort;
         if (!comfort.Enabled)
         {

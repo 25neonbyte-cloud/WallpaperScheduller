@@ -88,6 +88,25 @@ public interface IConfigStore
     Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default);
 }
 
+public interface IEffectiveConfigProvider
+{
+    Task<AppConfig> LoadEffectiveAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed record NetworkRuntimeStatus(
+    NetworkNodeRole Role,
+    bool Running,
+    bool Connected,
+    string Message,
+    string? PolicyRevision = null,
+    DateTimeOffset? LastContactUtc = null);
+
+public interface INetworkCoordinator : IDisposable
+{
+    NetworkRuntimeStatus Status { get; }
+    Task StartAsync(CancellationToken cancellationToken = default);
+}
+
 public interface IConfigTransferService
 {
     Task ExportAsync(AppConfig config, string destinationPath, CancellationToken cancellationToken = default);

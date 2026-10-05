@@ -9,6 +9,7 @@ public enum TemperatureApplicationMethod { Automatic, Software, DdcCi }
 public enum VisualRoutineThemeTarget { Manual, Light, Dark }
 public enum VisualControlMode { Manual, Scheduled }
 public enum ApplicationThemeMode { FollowSystem, Light, Dark }
+public enum NetworkNodeRole { Standalone, Controller, Agent }
 
 public sealed class WallpaperSourceItem
 {
@@ -114,14 +115,28 @@ public sealed class VisualRoutineBinding
     public int? TemperatureKelvin { get; set; }
 }
 
+public sealed class NetworkSettings
+{
+    public NetworkNodeRole Role { get; set; } = NetworkNodeRole.Standalone;
+    public Guid NodeId { get; set; } = Guid.NewGuid();
+    public string NodeName { get; set; } = Environment.MachineName;
+    public string Group { get; set; } = "default";
+    public int ControllerPort { get; set; } = 48721;
+    public string ControllerUrl { get; set; } = string.Empty;
+    public string SharedSecret { get; set; } = string.Empty;
+    public int SyncIntervalSeconds { get; set; } = 10;
+    public int OfflineAfterSeconds { get; set; } = 45;
+}
+
 public sealed class AppConfig
 {
-    public int Version { get; set; } = 5;
+    public int Version { get; set; } = 6;
     public SchedulerSettings Scheduler { get; set; } = new();
     public UiSettings Ui { get; set; } = new();
     public List<MonitorProfile> MonitorProfiles { get; set; } = [];
     public List<WallpaperRule> Rules { get; set; } = CreateDefaultCycle();
     public VisualComfortSettings VisualComfort { get; set; } = new();
+    public NetworkSettings Network { get; set; } = new();
 
     private static List<WallpaperRule> CreateDefaultCycle()
     {

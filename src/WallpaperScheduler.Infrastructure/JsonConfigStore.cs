@@ -22,7 +22,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         {
             var initial = new AppConfig();
             await SaveAsync(initial, cancellationToken);
-            logger?.Info("Configuração inicial criada no schema v5.");
+            logger?.Info("Configuração inicial criada no schema v6.");
             return initial;
         }
 
@@ -32,7 +32,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
             if (migrated)
             {
                 await SaveAsync(config, cancellationToken);
-                logger?.Info("Configuração migrada automaticamente para o schema v5; regras e períodos existentes foram preservados e a temperatura automática passou a usar curva contínua.");
+                logger?.Info("Configuração migrada automaticamente para o schema v6; regras e períodos existentes foram preservados e a temperatura automática passou a usar curva contínua.");
             }
             return config;
         }
@@ -107,7 +107,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
         var (imported, migrated) = await ReadConfigAsync(sourcePath, cancellationToken);
         logger?.Info(migrated
-            ? $"Configuração importada de '{sourcePath}' e migrada para o schema v5."
+            ? $"Configuração importada de '{sourcePath}' e migrada para o schema v6."
             : $"Configuração importada de '{sourcePath}'.");
         return imported;
     }
@@ -125,6 +125,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         if (originalVersion < 5)
         {
             config.VisualComfort ??= new VisualComfortSettings();
+        config.Network ??= new NetworkSettings();
             config.VisualComfort.Temperature ??= new ColorTemperatureSettings();
             config.VisualComfort.Temperature.ControlMode = VisualControlMode.Scheduled;
         }
@@ -150,7 +151,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
 
     private static void NormalizeAndValidate(AppConfig config)
     {
-        if (config.Version is < 1 or > 5)
+        if (config.Version is < 1 or > 6)
             throw new InvalidDataException($"Versão de configuração não suportada: {config.Version}.");
 
         config.Scheduler ??= new SchedulerSettings();
@@ -165,6 +166,13 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
         config.VisualComfort.Routine.Bindings ??= [];
 
         config.Scheduler.HeartbeatSeconds = Math.Clamp(config.Scheduler.HeartbeatSeconds, 10, 3600);
+        config.Network.NodeName = string.IsNullOrWhiteSpace(config.Network.NodeName) ? Environment.MachineName : config.Network.NodeName.Trim();
+        config.Network.Group = string.IsNullOrWhiteSpace(config.Network.Group) ? "default" : config.Network.Group.Trim();
+        config.Network.ControllerPort = Math.Clamp(config.Network.ControllerPort, 1024, 65535);
+        config.Network.SyncIntervalSeconds = Math.Clamp(config.Network.SyncIntervalSeconds, 3, 3600);
+        config.Network.OfflineAfterSeconds = Math.Clamp(config.Network.OfflineAfterSeconds, 10, 86400);
+        config.Network.ControllerUrl = config.Network.ControllerUrl?.Trim() ?? string.Empty;
+        config.Network.SharedSecret = config.Network.SharedSecret?.Trim() ?? string.Empty;
         config.VisualComfort.Temperature.ManualKelvin = Math.Clamp(config.VisualComfort.Temperature.ManualKelvin, 3400, 6500);
         config.VisualComfort.Temperature.DayKelvin = Math.Clamp(config.VisualComfort.Temperature.DayKelvin, 3400, 6500);
         config.VisualComfort.Temperature.NightKelvin = Math.Clamp(config.VisualComfort.Temperature.NightKelvin, 3400, 6500);
@@ -202,7 +210,7 @@ public sealed class JsonConfigStore(string path, IAppLogger? logger = null) : IC
                 pair.Value.TemperatureKelvin = Math.Clamp(kelvin, 3400, 6500);
         }
 
-        config.Version = 5;
+        config.Version = 6;
     }
 
     private string GetConfigDirectory() =>

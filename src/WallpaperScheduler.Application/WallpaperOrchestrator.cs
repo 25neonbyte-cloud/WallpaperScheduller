@@ -3,7 +3,7 @@ using WallpaperScheduler.Domain;
 namespace WallpaperScheduler.Application;
 
 public sealed class WallpaperOrchestrator(
-    IConfigStore configStore,
+    IEffectiveConfigProvider configProvider,
     IRuleEngine ruleEngine,
     IMonitorService monitorService,
     IMonitorProfileResolver monitorProfileResolver,
@@ -20,7 +20,7 @@ public sealed class WallpaperOrchestrator(
 
     private async Task<ApplyResult> ApplyCurrentCoreAsync(bool forceReapply, CancellationToken cancellationToken)
     {
-        var config = await configStore.LoadAsync(cancellationToken);
+        var config = await configProvider.LoadEffectiveAsync(cancellationToken);
         var evaluation = ruleEngine.Evaluate(config.Rules, clock.Now);
         if (!evaluation.HasMatch)
             return new(false, evaluation.Reason);
