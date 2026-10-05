@@ -23,11 +23,13 @@ public partial class MainWindow : Window
         "window-state.json");
 
     private readonly IAppLogger _logger;
+    private readonly IConfigStore _configStore;
     private bool _restoreMaximized;
 
-    public MainWindow(MainViewModel viewModel, IAppLogger logger, AppThemeManager appThemeManager)
+    public MainWindow(MainViewModel viewModel, IAppLogger logger, IConfigStore configStore, AppThemeManager appThemeManager)
     {
         _logger = logger;
+        _configStore = configStore;
         InitializeComponent();
         DataContext = viewModel;
 
@@ -186,6 +188,15 @@ public partial class MainWindow : Window
         button.ContextMenu.PlacementTarget = button;
         button.ContextMenu.Placement = WpfPlacementMode.Bottom;
         button.ContextMenu.IsOpen = true;
+    }
+
+    private void OpenNetworkSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new NetworkSettingsWindow(_configStore)
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
     }
 
     private void PlannedFeature_Click(object sender, RoutedEventArgs e)
